@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>iPad Display</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="receiver-page">
+  <video id="display" autoplay playsinline></video>
+  <main id="pairing" class="pairing-card">
+    <p class="eyebrow">IPAD DISPLAY</p>
+    <h1>Windows 화면 연결</h1>
+    <p>PC의 iPad Display Server에 표시된 6자리 PIN을 입력하세요.</p>
+    <form id="pair-form">
+      <input id="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" autocomplete="one-time-code" aria-label="페어링 PIN" required>
+      <button class="button primary" type="submit">연결</button>
+    </form>
+    <p id="receiver-status" class="receiver-status">연결 대기 중</p>
+    <p id="receiver-error" class="error" role="alert"></p>
+  </main>
+  <button id="fullscreen" class="fullscreen-button" hidden>전체 화면</button>
+  <script src="common.js"></script>
+  <script src="receiver.js"></script>
+</body>
+</html>

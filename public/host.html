@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iPad Display Server</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="host-page">
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">WINDOWS HOST</p>
+        <h1>iPad Display Server</h1>
+        <p class="subtitle">Windows 화면을 iPad Safari로 낮은 지연 시간에 전송합니다.</p>
+      </div>
+      <span id="server-status" class="status ready">서버 실행 중</span>
+    </header>
+
+    <section class="panel connect-panel">
+      <div>
+        <span class="step">1</span>
+        <h2>iPad에서 접속</h2>
+        <p>Windows와 같은 Wi-Fi에서 Safari 주소창에 아래 주소를 입력하세요.</p>
+      </div>
+      <div id="addresses" class="address-list"></div>
+      <div class="pin-box"><span>페어링 PIN</span><strong id="pin">------</strong></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">
+        <div><span class="step">2</span><h2>전송할 디스플레이 선택</h2></div>
+        <button id="refresh" class="button secondary">새로 고침</button>
+      </div>
+      <div id="sources" class="source-grid" aria-live="polite"></div>
+      <div class="target-settings">
+        <label class="target-field">타겟 디스플레이
+          <select id="target-profile" aria-describedby="target-summary"></select>
+        </label>
+        <label>방향
+          <select id="orientation">
+            <option value="landscape" selected>가로</option>
+            <option value="portrait">세로</option>
+          </select>
+        </label>
+        <button id="custom-profile-toggle" class="button secondary">커스텀 저장</button>
+        <button id="delete-profile" class="button danger" hidden>선택 프로필 삭제</button>
+      </div>
+      <p id="target-summary" class="target-summary"></p>
+      <form id="custom-profile-form" class="custom-profile-form" hidden>
+        <label>이름 <input id="custom-name" maxlength="40" placeholder="예: 내 태블릿" required></label>
+        <label>가로 <input id="custom-width" type="number" min="640" max="7680" value="1920" required></label>
+        <span>×</span>
+        <label>세로 <input id="custom-height" type="number" min="480" max="4320" value="1200" required></label>
+        <button class="button primary" type="submit">프로필 저장</button>
+      </form>
+      <div class="quality-row">
+        <p>선택한 기기의 네이티브 해상도를 최대 60fps로 요청합니다.</p>
+        <button id="start" class="button primary" disabled>화면 전송 시작</button>
+      </div>
+    </section>
+
+    <section class="panel stream-panel">
+      <div>
+        <p class="eyebrow">PREVIEW</p>
+        <h2 id="stream-title">아직 전송하지 않음</h2>
+        <p id="stream-detail">디스플레이를 선택하고 전송을 시작하세요.</p>
+      </div>
+      <video id="preview" autoplay muted playsinline></video>
+    </section>
+
+    <p id="error" class="error" role="alert"></p>
+  </main>
+  <script src="common.js"></script>
+  <script src="host.js"></script>
+</body>
+</html>

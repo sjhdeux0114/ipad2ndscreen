@@ -1,0 +1,40 @@
+name: Windows Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build Windows installer
+        run: npm run dist
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $installer = Get-ChildItem -Path dist -Filter 'iPad-Display-Server-Setup-*.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'Windows installer was not generated.' }
+          gh release create $env:GITHUB_REF_NAME $installer.FullName --verify-tag --generate-notes --title "iPad Display Server $env:GITHUB_REF_NAME"

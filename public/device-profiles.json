@@ -1,0 +1,213 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-29",
+  "profiles": [
+    {
+      "id": "balanced-1920x1200",
+      "brand": "권장",
+      "model": "균형 모드",
+      "width": 1920,
+      "height": 1200,
+      "maxRefreshRate": 60,
+      "note": "60fps와 화질의 균형"
+    },
+    {
+      "id": "performance-1280x800",
+      "brand": "권장",
+      "model": "성능 우선",
+      "width": 1280,
+      "height": 800,
+      "maxRefreshRate": 60,
+      "note": "혼잡한 Wi-Fi용"
+    },
+    {
+      "id": "apple-ipad-mini-5",
+      "brand": "Apple",
+      "model": "iPad mini 5",
+      "width": 2048,
+      "height": 1536,
+      "maxRefreshRate": 60,
+      "source": "https://support.apple.com/111904"
+    },
+    {
+      "id": "apple-ipad-mini-6",
+      "brand": "Apple",
+      "model": "iPad mini 6",
+      "width": 2266,
+      "height": 1488,
+      "maxRefreshRate": 60,
+      "source": "https://support.apple.com/111886"
+    },
+    {
+      "id": "apple-ipad-mini-7",
+      "brand": "Apple",
+      "model": "iPad mini 7 (A17 Pro)",
+      "width": 2266,
+      "height": 1488,
+      "maxRefreshRate": 60,
+      "source": "https://support.apple.com/121456"
+    },
+    {
+      "id": "apple-ipad-mini-8",
+      "brand": "Apple",
+      "model": "iPad mini 8 (A20 Pro, 2026)",
+      "width": 2316,
+      "height": 1512,
+      "maxRefreshRate": 60,
+      "source": "https://www.apple.com/ipad-mini/specs/"
+    },
+    {
+      "id": "apple-ipad-air-11",
+      "brand": "Apple",
+      "model": "iPad Air 11-inch (M2/M3/M4)",
+      "width": 2360,
+      "height": 1640,
+      "maxRefreshRate": 60,
+      "source": "https://support.apple.com/126471"
+    },
+    {
+      "id": "apple-ipad-pro-11-legacy",
+      "brand": "Apple",
+      "model": "iPad Pro 11-inch (1~4세대)",
+      "width": 2388,
+      "height": 1668,
+      "maxRefreshRate": 120,
+      "source": "https://support.apple.com/111897"
+    },
+    {
+      "id": "apple-ipad-pro-11-current",
+      "brand": "Apple",
+      "model": "iPad Pro 11-inch (M4/M5)",
+      "width": 2420,
+      "height": 1668,
+      "maxRefreshRate": 120,
+      "source": "https://www.apple.com/ipad-pro/specs/"
+    },
+    {
+      "id": "apple-ipad-pro-12-9",
+      "brand": "Apple",
+      "model": "iPad Pro 12.9-inch",
+      "width": 2732,
+      "height": 2048,
+      "maxRefreshRate": 120,
+      "source": "https://support.apple.com/111977"
+    },
+    {
+      "id": "apple-ipad-pro-13",
+      "brand": "Apple",
+      "model": "iPad Pro 13-inch (M4/M5)",
+      "width": 2752,
+      "height": 2064,
+      "maxRefreshRate": 120,
+      "source": "https://www.apple.com/ipad-pro/specs/"
+    },
+    {
+      "id": "samsung-tab-s9",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S9",
+      "width": 2560,
+      "height": 1600,
+      "maxRefreshRate": 120,
+      "source": "https://www.samsung.com/us/explore/mobile/buying-guide/tablet-models-explained/"
+    },
+    {
+      "id": "samsung-tab-s9-plus",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S9+",
+      "width": 2800,
+      "height": 1752,
+      "maxRefreshRate": 120,
+      "source": "https://www.samsung.com/ae/support/mobile-devices/galaxy-comparison-between-tab-s10-and-tab-s9/"
+    },
+    {
+      "id": "samsung-tab-s9-ultra",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S9 Ultra",
+      "width": 2960,
+      "height": 1848,
+      "maxRefreshRate": 120,
+      "source": "https://www.samsung.com/ae/support/mobile-devices/galaxy-comparison-between-tab-s10-and-tab-s9/"
+    },
+    {
+      "id": "samsung-tab-s10-plus",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S10+",
+      "width": 2800,
+      "height": 1752,
+      "maxRefreshRate": 120,
+      "source": "https://news.samsung.com/global/galaxy-tab-s10-series-is-samsungs-ai-ready-tablet"
+    },
+    {
+      "id": "samsung-tab-s10-ultra",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S10 Ultra",
+      "width": 2960,
+      "height": 1848,
+      "maxRefreshRate": 120,
+      "source": "https://news.samsung.com/global/galaxy-tab-s10-series-is-samsungs-ai-ready-tablet"
+    },
+    {
+      "id": "samsung-tab-s10-fe",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S10 FE",
+      "width": 2304,
+      "height": 1440,
+      "maxRefreshRate": 90,
+      "source": "https://www.samsung.com/us/explore/mobile/buying-guide/tablet-models-explained/"
+    },
+    {
+      "id": "samsung-tab-s10-fe-plus",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S10 FE+",
+      "width": 2880,
+      "height": 1800,
+      "maxRefreshRate": 90,
+      "source": "https://www.samsung.com/us/explore/mobile/buying-guide/tablet-models-explained/"
+    },
+    {
+      "id": "samsung-tab-s10-lite",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S10 Lite",
+      "width": 2112,
+      "height": 1320,
+      "maxRefreshRate": 90,
+      "source": "https://www.samsung.com/us/tablets/compare/"
+    },
+    {
+      "id": "samsung-tab-s11",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S11",
+      "width": 2560,
+      "height": 1600,
+      "maxRefreshRate": 120,
+      "source": "https://www.samsung.com/us/tablets/compare/"
+    },
+    {
+      "id": "samsung-tab-s11-ultra",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S11 Ultra",
+      "width": 2960,
+      "height": 1848,
+      "maxRefreshRate": 120,
+      "source": "https://www.samsung.com/us/tablets/compare/"
+    },
+    {
+      "id": "samsung-tab-s12-plus",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S12+",
+      "width": 2800,
+      "height": 1752,
+      "maxRefreshRate": 120,
+      "source": "https://www.samsung.com/us/tablets/compare/"
+    },
+    {
+      "id": "samsung-tab-s12-ultra",
+      "brand": "Samsung",
+      "model": "Galaxy Tab S12 Ultra",
+      "width": 2960,
+      "height": 1848,
+      "maxRefreshRate": 120,
+      "source": "https://www.samsung.com/us/tablets/compare/"
+    }
+  ]
+}
