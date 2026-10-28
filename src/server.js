@@ -35,12 +35,12 @@ async function readJson(request) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-function isAuthorized(request, url, pin) {
+function isAuthorized(request, url, pin, isPinAuthorized) {
   const supplied = request.headers['x-pairing-pin'] || url.searchParams.get('pin');
-  return supplied === pin;
+  return isPinAuthorized ? isPinAuthorized(String(supplied || '')) : supplied === pin;
 }
 
-function createDisplayServer({ staticRoot, pin, port = 5178, host = '0.0.0.0', onSessionCountChanged = () => {} }) {
+function createDisplayServer({ staticRoot, pin, isPinAuthorized, port = 5178, host = '0.0.0.0', onSessionCountChanged = () => {} }) {
   const store = new SignalingStore();
 
   const server = http.createServer(async (request, response) => {
@@ -49,7 +49,7 @@ function createDisplayServer({ staticRoot, pin, port = 5178, host = '0.0.0.0', o
 
     try {
       if (url.pathname.startsWith('/api/')) {
-        if (!isAuthorized(request, url, pin)) {
+        if (!isAuthorized(request, url, pin, isPinAuthorized)) {
           sendJson(response, 403, { error: 'Pairing PIN is incorrect.' });
           return;
         }

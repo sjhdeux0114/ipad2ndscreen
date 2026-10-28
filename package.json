@@ -1,6 +1,6 @@
 {
   "name": "ipad-display-server",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Use an iPad Safari browser as a low-latency Windows display receiver.",
   "main": "src/main.js",
   "author": "iPad Display Server contributors",

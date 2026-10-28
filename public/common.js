@@ -13,7 +13,15 @@ window.iPadDisplay = {
   preferH264(transceiver) {
     if (!transceiver?.setCodecPreferences || !window.RTCRtpReceiver?.getCapabilities) return;
     const codecs = RTCRtpReceiver.getCapabilities('video')?.codecs || [];
-    const h264 = codecs.filter((codec) => codec.mimeType.toLowerCase() === 'video/h264');
+    const h264 = codecs
+      .filter((codec) => codec.mimeType.toLowerCase() === 'video/h264')
+      .sort((left, right) => {
+        const score = (codec) => {
+          const fmtp = codec.sdpFmtpLine || '';
+          return (fmtp.includes('profile-level-id=42') ? 2 : 0) + (fmtp.includes('packetization-mode=1') ? 1 : 0);
+        };
+        return score(right) - score(left);
+      });
     const rest = codecs.filter((codec) => codec.mimeType.toLowerCase() !== 'video/h264');
     if (h264.length) transceiver.setCodecPreferences([...h264, ...rest]);
   }

@@ -27,6 +27,26 @@
       <div class="pin-box"><span>페어링 PIN</span><strong id="pin">------</strong></div>
     </section>
 
+    <section class="panel settings-panel">
+      <div>
+        <p class="eyebrow">SETTINGS</p>
+        <h2>프로그램 설정</h2>
+        <p>창을 닫아도 서버는 알림 영역에서 계속 실행됩니다. 완전 종료는 트레이 메뉴에서 할 수 있습니다.</p>
+      </div>
+      <form id="settings-form" class="settings-form">
+        <label class="check-field">
+          <input id="auto-start" type="checkbox">
+          Windows 로그인 시 자동 실행
+        </label>
+        <label class="master-code-field">마스터 코드
+          <input id="master-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="비워두면 사용 안 함" autocomplete="off">
+        </label>
+        <button id="generate-master-code" class="button secondary" type="button">랜덤 생성</button>
+        <button class="button primary" type="submit">설정 저장</button>
+      </form>
+      <p id="settings-message" class="driver-message" aria-live="polite"></p>
+    </section>
+
     <section class="panel virtual-display-panel">
       <div>
         <span class="step">2</span>
@@ -68,6 +88,13 @@
             <option value="300">300%</option>
           </select>
         </label>
+        <label>스트리밍
+          <select id="latency-profile">
+            <option value="ultra-low" selected>초저지연 · 게임 우선</option>
+            <option value="balanced">균형</option>
+            <option value="quality">화질 우선</option>
+          </select>
+        </label>
         <button id="custom-profile-toggle" class="button secondary">커스텀 저장</button>
         <button id="delete-profile" class="button danger" hidden>선택 프로필 삭제</button>
       </div>
@@ -80,7 +107,7 @@
         <button class="button primary" type="submit">프로필 저장</button>
       </form>
       <div class="quality-row">
-        <p>선택한 기기의 네이티브 해상도를 최대 60fps로 요청합니다.</p>
+        <p>초저지연 모드는 60fps와 입력 반응을 우선하고 네트워크 상태에 따라 화질을 조절합니다.</p>
         <button id="start" class="button primary" disabled>화면 전송 시작</button>
       </div>
     </section>

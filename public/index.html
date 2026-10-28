@@ -9,11 +9,12 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="receiver-page">
-  <video id="display" autoplay playsinline></video>
+  <video id="display" autoplay muted playsinline disablepictureinpicture></video>
+  <output id="latency-stats" class="latency-stats" hidden></output>
   <main id="pairing" class="pairing-card">
     <p class="eyebrow">IPAD DISPLAY</p>
     <h1>Windows 화면 연결</h1>
-    <p>PC의 iPad Display Server에 표시된 6자리 PIN을 입력하세요.</p>
+    <p>PC에 표시된 6자리 PIN 또는 설정한 마스터 코드를 입력하세요.</p>
     <form id="pair-form">
       <input id="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" autocomplete="one-time-code" aria-label="페어링 PIN" required>
       <button class="button primary" type="submit">연결</button>

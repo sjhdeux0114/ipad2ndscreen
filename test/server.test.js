@@ -10,7 +10,8 @@ test('server protects signaling and completes a handshake', async (context) => {
     staticRoot: path.join(__dirname, '..', 'public'),
     pin: '123456',
     port: 0,
-    host: '127.0.0.1'
+    host: '127.0.0.1',
+    isPinAuthorized: (pin) => pin === '123456' || pin === '654321'
   });
   const address = await server.start();
   context.after(() => server.stop());
@@ -18,6 +19,9 @@ test('server protects signaling and completes a handshake', async (context) => {
 
   const denied = await fetch(`${base}/api/config`, { headers: { 'X-Pairing-Pin': '000000' } });
   assert.equal(denied.status, 403);
+
+  const masterCodeAccepted = await fetch(`${base}/api/config`, { headers: { 'X-Pairing-Pin': '654321' } });
+  assert.equal(masterCodeAccepted.status, 200);
 
   const created = await fetch(`${base}/api/sessions`, {
     method: 'POST',
