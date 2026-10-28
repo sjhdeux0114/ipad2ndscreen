@@ -27,9 +27,23 @@
       <div class="pin-box"><span>페어링 PIN</span><strong id="pin">------</strong></div>
     </section>
 
+    <section class="panel virtual-display-panel">
+      <div>
+        <span class="step">2</span>
+        <h2>가상 확장 디스플레이</h2>
+        <p>아래에서 기기·방향·배율을 고른 뒤 만들면 Windows에 새 모니터가 추가됩니다. 최초 한 번 관리자 승인이 필요합니다.</p>
+      </div>
+      <div class="virtual-display-actions">
+        <span id="virtual-display-status" class="driver-status">상태 확인 중…</span>
+        <button id="apply-virtual-display" class="button primary">가상 확장 화면 만들기</button>
+        <button id="remove-virtual-display" class="button danger" hidden>가상 화면 제거</button>
+      </div>
+      <p id="virtual-display-message" class="driver-message" aria-live="polite"></p>
+    </section>
+
     <section class="panel">
       <div class="section-title">
-        <div><span class="step">2</span><h2>전송할 디스플레이 선택</h2></div>
+        <div><span class="step">3</span><h2>전송할 디스플레이 선택</h2></div>
         <button id="refresh" class="button secondary">새로 고침</button>
       </div>
       <div id="sources" class="source-grid" aria-live="polite"></div>
@@ -41,6 +55,17 @@
           <select id="orientation">
             <option value="landscape" selected>가로</option>
             <option value="portrait">세로</option>
+          </select>
+        </label>
+        <label>Windows 배율
+          <select id="display-scale">
+            <option value="100">100%</option>
+            <option value="125">125%</option>
+            <option value="150" selected>150%</option>
+            <option value="175">175%</option>
+            <option value="200">200%</option>
+            <option value="250">250%</option>
+            <option value="300">300%</option>
           </select>
         </label>
         <button id="custom-profile-toggle" class="button secondary">커스텀 저장</button>

@@ -13,6 +13,8 @@ let builtInProfiles = [];
 let customProfiles = [];
 const CUSTOM_PROFILES_KEY = 'ipad-display.custom-profiles.v1';
 const SELECTED_PROFILE_KEY = 'ipad-display.selected-profile.v1';
+const DISPLAY_SCALE_KEY = 'ipad-display.scale.v1';
+let virtualDisplayInstalled = false;
 
 const elements = {
   addresses: document.querySelector('#addresses'),
@@ -20,6 +22,7 @@ const elements = {
   sources: document.querySelector('#sources'),
   targetProfile: document.querySelector('#target-profile'),
   orientation: document.querySelector('#orientation'),
+  displayScale: document.querySelector('#display-scale'),
   targetSummary: document.querySelector('#target-summary'),
   customProfileToggle: document.querySelector('#custom-profile-toggle'),
   customProfileForm: document.querySelector('#custom-profile-form'),
@@ -32,7 +35,11 @@ const elements = {
   preview: document.querySelector('#preview'),
   streamTitle: document.querySelector('#stream-title'),
   streamDetail: document.querySelector('#stream-detail'),
-  error: document.querySelector('#error')
+  error: document.querySelector('#error'),
+  virtualDisplayStatus: document.querySelector('#virtual-display-status'),
+  virtualDisplayMessage: document.querySelector('#virtual-display-message'),
+  applyVirtualDisplay: document.querySelector('#apply-virtual-display'),
+  removeVirtualDisplay: document.querySelector('#remove-virtual-display')
 };
 
 function showError(error) {
@@ -59,9 +66,10 @@ function updateTargetSummary() {
   const profile = currentProfile();
   if (!profile) return;
   const { width, height } = currentDimensions();
-  elements.targetSummary.textContent = `${profile.model} · ${width} × ${height} · 스트리밍 최대 60fps${profile.note ? ` · ${profile.note}` : ''}`;
+  elements.targetSummary.textContent = `${profile.model} · ${width} × ${height} · Windows 배율 ${elements.displayScale.value}% · 스트리밍 최대 60fps${profile.note ? ` · ${profile.note}` : ''}`;
   elements.deleteProfile.hidden = profile.brand !== '사용자';
   localStorage.setItem(SELECTED_PROFILE_KEY, profile.id);
+  localStorage.setItem(DISPLAY_SCALE_KEY, elements.displayScale.value);
 }
 
 function renderProfiles(selectedId = localStorage.getItem(SELECTED_PROFILE_KEY)) {
@@ -124,10 +132,13 @@ async function loadHostInfo() {
   }));
 }
 
-async function loadSources() {
+async function loadSources(preferredId = selectedSource?.id, previousIds = null) {
   elements.sources.textContent = '디스플레이를 찾는 중…';
   const sources = await window.hostApi.getDisplaySources();
-  elements.sources.replaceChildren(...sources.map((source, index) => {
+  const preferred = sources.find((source) => source.id === preferredId)
+    || (previousIds ? sources.find((source) => !previousIds.has(source.id)) : null)
+    || sources[0];
+  elements.sources.replaceChildren(...sources.map((source) => {
     const button = document.createElement('button');
     button.className = 'source-card';
     button.dataset.sourceId = source.id;
@@ -138,9 +149,57 @@ async function loadSources() {
     name.textContent = source.name;
     button.append(image, name);
     button.addEventListener('click', () => selectSource(source, button));
-    if (index === 0) queueMicrotask(() => selectSource(source, button));
+    if (source.id === preferred?.id) queueMicrotask(() => selectSource(source, button));
     return button;
   }));
+  return sources;
+}
+
+async function refreshVirtualDisplayStatus() {
+  const status = await window.hostApi.getVirtualDisplayStatus();
+  virtualDisplayInstalled = status.installed;
+  elements.virtualDisplayStatus.textContent = status.ready ? '가상 화면 준비됨' : status.installed ? '가상 화면 확인 필요' : '아직 설치되지 않음';
+  elements.virtualDisplayStatus.classList.toggle('ready', status.ready);
+  elements.applyVirtualDisplay.textContent = status.installed ? '해상도·배율 적용' : '가상 확장 화면 만들기';
+  elements.removeVirtualDisplay.hidden = !status.installed;
+}
+
+async function applyVirtualDisplay() {
+  const previousSources = await window.hostApi.getDisplaySources();
+  const previousIds = new Set(previousSources.map((source) => source.id));
+  const { width, height } = currentDimensions();
+  const settings = { width, height, scale: Number(elements.displayScale.value) };
+  elements.applyVirtualDisplay.disabled = true;
+  elements.removeVirtualDisplay.disabled = true;
+  elements.virtualDisplayMessage.textContent = '관리자 승인 후 가상 디스플레이를 설정합니다…';
+  elements.error.textContent = '';
+  try {
+    const result = virtualDisplayInstalled
+      ? await window.hostApi.configureVirtualDisplay(settings)
+      : await window.hostApi.installVirtualDisplay(settings);
+    elements.virtualDisplayMessage.textContent = result.message;
+    await new Promise((resolve) => setTimeout(resolve, 1800));
+    await refreshVirtualDisplayStatus();
+    await loadSources(null, previousIds);
+  } finally {
+    elements.applyVirtualDisplay.disabled = false;
+    elements.removeVirtualDisplay.disabled = false;
+  }
+}
+
+async function removeVirtualDisplay() {
+  elements.removeVirtualDisplay.disabled = true;
+  elements.applyVirtualDisplay.disabled = true;
+  elements.virtualDisplayMessage.textContent = '가상 디스플레이를 제거하는 중…';
+  try {
+    const result = await window.hostApi.removeVirtualDisplay();
+    elements.virtualDisplayMessage.textContent = result.message;
+    await refreshVirtualDisplayStatus();
+    await loadSources();
+  } finally {
+    elements.removeVirtualDisplay.disabled = false;
+    elements.applyVirtualDisplay.disabled = false;
+  }
 }
 
 function selectSource(source, button) {
@@ -248,6 +307,8 @@ async function pollHostEvents() {
 
 elements.start.addEventListener('click', () => startCapture().catch(showError));
 elements.refresh.addEventListener('click', () => loadSources().catch(showError));
+elements.applyVirtualDisplay.addEventListener('click', () => applyVirtualDisplay().catch(showError));
+elements.removeVirtualDisplay.addEventListener('click', () => removeVirtualDisplay().catch(showError));
 elements.targetProfile.addEventListener('change', () => {
   updateTargetSummary();
   if (stream) void startCapture().catch(showError);
@@ -256,6 +317,7 @@ elements.orientation.addEventListener('change', () => {
   updateTargetSummary();
   if (stream) void startCapture().catch(showError);
 });
+elements.displayScale.addEventListener('change', updateTargetSummary);
 elements.customProfileToggle.addEventListener('click', () => {
   elements.customProfileForm.hidden = !elements.customProfileForm.hidden;
   if (!elements.customProfileForm.hidden) elements.customName.focus();
@@ -292,4 +354,5 @@ elements.deleteProfile.addEventListener('click', () => {
   if (stream) void startCapture().catch(showError);
 });
 
-Promise.all([loadHostInfo(), loadSources(), loadProfiles()]).catch(showError);
+elements.displayScale.value = localStorage.getItem(DISPLAY_SCALE_KEY) || '150';
+Promise.all([loadHostInfo(), loadSources(), loadProfiles(), refreshVirtualDisplayStatus()]).catch(showError);

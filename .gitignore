@@ -1,4 +1,8 @@
 node_modules/
 dist/
+dist-final/
+native/DisplayManager/bin/
+native/DisplayManager/obj/
+native/DisplayManager/publish/
 *.log
 .DS_Store

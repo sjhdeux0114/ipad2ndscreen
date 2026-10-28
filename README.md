@@ -1,6 +1,6 @@
 # iPad Display Server
 
-Windows 화면을 같은 로컬 네트워크의 iPad Safari로 전송하는 WebRTC 기반 프로토타입입니다. Windows 호스트에서 Electron/Chromium의 데스크톱 캡처와 하드웨어 비디오 인코딩을 사용하고, iPad에는 별도 앱을 설치하지 않습니다.
+Windows에 가상 확장 모니터를 만들고 같은 로컬 네트워크의 iPad Safari로 전송하는 WebRTC 기반 프로그램입니다. Windows 호스트에서 Electron/Chromium의 데스크톱 캡처와 하드웨어 비디오 인코딩을 사용하고, iPad에는 별도 앱을 설치하지 않습니다.
 
 ## 현재 구현 범위
 
@@ -12,19 +12,24 @@ Windows 화면을 같은 로컬 네트워크의 iPad Safari로 전송하는 WebR
 - iPad 터치 이벤트용 WebRTC 데이터 채널(Windows 입력 주입은 다음 단계)
 - Apple/Samsung 태블릿 내장 해상도 DB와 가로·세로 방향 전환
 - 사용자 지정 해상도 프로필 저장 및 삭제
+- 서명된 간접 디스플레이 드라이버를 이용한 Windows 가상 모니터 생성·제거
+- 가상 모니터 생성 후 Windows 표시 모드를 자동으로 `확장`으로 전환
+- 기기별 해상도와 Windows 배율 100%, 125%, 150%, 175%, 200%, 250%, 300% 적용
 
-아직 Windows에 새 디스플레이를 생성하는 가상 디스플레이 드라이버와 터치 입력 주입은 포함하지 않습니다. 이미 연결된 실제 또는 가상 디스플레이를 선택해 스트리밍하는 MVP입니다.
+터치 입력의 Windows 주입은 아직 포함하지 않습니다. iPad 터치 이벤트용 데이터 채널까지만 준비되어 있습니다.
 
 ## 개발 실행
 
-Node.js 22 이상이 필요합니다.
+Node.js 22 이상과 .NET 9 SDK가 필요합니다.
 
 ```powershell
 npm install
 npm start
 ```
 
-호스트 창에서 전송할 화면과 품질을 선택하고 **화면 전송 시작**을 누릅니다. 같은 Wi-Fi에 연결한 iPad Safari에서 호스트 창에 표시된 주소로 접속한 뒤 PIN을 입력합니다.
+호스트 창에서 기기·방향·배율을 고른 뒤 **가상 확장 화면 만들기**를 누릅니다. Windows 관리자 승인 후 새 화면이 생기며, 앱이 새 디스플레이를 자동으로 선택합니다. **화면 전송 시작**을 누르고 같은 Wi-Fi의 iPad Safari에서 표시된 주소와 PIN으로 접속합니다.
+
+가상 디스플레이 드라이버는 [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver)의 서명된 x64 릴리스(25.7.23, MIT)를 포함합니다. 드라이버 설치·변경·제거 시에만 Windows 관리자 승인을 요청하며, 실행 전 포함 파일의 SHA-256을 확인합니다. Windows 버전이나 디스플레이 드라이버 조합에 따라 배율 적용이 거부되면 Windows **설정 → 시스템 → 디스플레이**에서 같은 값을 직접 선택할 수 있습니다.
 
 Windows 방화벽이 묻는 경우 사설 네트워크에서 Node/Electron의 인바운드 연결을 허용해야 합니다. 게스트 Wi-Fi나 AP 격리가 켜진 공유기에서는 기기 간 통신이 차단될 수 있습니다.
 

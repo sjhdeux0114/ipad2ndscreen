@@ -58,6 +58,13 @@ select { margin-left: 8px; padding: 10px 12px; border: 1px solid var(--line); bo
 .target-field { flex: 1 1 430px; }
 .target-field select { width: calc(100% - 140px); }
 .target-summary { margin: 10px 0 16px; color: #c9d1e8; font-size: .9rem; }
+.virtual-display-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 28px; }
+.virtual-display-panel h2 { display: inline; }
+.virtual-display-panel p { margin: 10px 0 0; }
+.virtual-display-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.driver-status { padding: 8px 11px; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--muted); font-size: .82rem; white-space: nowrap; }
+.driver-status.ready { background: rgba(38,180,108,.12); color: #86ffc0; }
+.driver-message { grid-column: 1 / -1; min-height: 1.25em; color: #cbd4ee; font-size: .88rem; }
 .custom-profile-form { display: flex; align-items: end; gap: 10px; margin: 12px 0 18px; padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: rgba(0,0,0,.16); }
 .custom-profile-form[hidden] { display: none; }
 .custom-profile-form label { display: grid; gap: 6px; font-size: .84rem; }
@@ -84,6 +91,8 @@ select { margin-left: 8px; padding: 10px 12px; border: 1px solid var(--line); bo
   .connect-panel { grid-template-columns: 1fr; }
   .stream-panel video { width: 100%; }
   .custom-profile-form { align-items: stretch; flex-direction: column; }
+  .virtual-display-panel { grid-template-columns: 1fr; }
+  .virtual-display-actions { justify-content: flex-start; }
   .custom-profile-form input { width: 100%; }
   .target-field select { display: block; width: 100%; margin: 8px 0 0; }
 }

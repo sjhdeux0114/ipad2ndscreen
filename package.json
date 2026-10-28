@@ -1,15 +1,17 @@
 {
   "name": "ipad-display-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Use an iPad Safari browser as a low-latency Windows display receiver.",
   "main": "src/main.js",
   "author": "iPad Display Server contributors",
   "license": "MIT",
   "private": true,
   "scripts": {
+    "build:helper": "dotnet publish native/DisplayManager/DisplayManager.csproj -c Release -o native/DisplayManager/publish",
+    "prestart": "npm run build:helper",
     "start": "electron .",
     "test": "node --test",
-    "dist": "electron-builder --win nsis"
+    "dist": "npm run build:helper && electron-builder --win nsis"
   },
   "devDependencies": {
     "electron": "^45.1.0",
@@ -23,7 +25,13 @@
     "files": [
       "src/**/*",
       "public/**/*",
+      "native/DisplayManager/publish/DisplayManager.exe",
+      "vendor/virtual-display-driver/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "native/DisplayManager/publish/DisplayManager.exe",
+      "vendor/virtual-display-driver/driver/**/*"
     ],
     "win": {
       "target": "nsis"
