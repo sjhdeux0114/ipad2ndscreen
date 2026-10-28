@@ -9,6 +9,8 @@ const { promisify } = require('node:util');
 const { app, BrowserWindow, Menu, Tray, nativeImage, clipboard, desktopCapturer, ipcMain, powerSaveBlocker, shell } = require('electron');
 const { createDisplayServer } = require('./server');
 const { DEFAULT_SETTINGS, createSettingsStore } = require('./settings-store');
+const { createTrustedDeviceStore } = require('./trusted-device-store');
+const { parseVirtualDisplayResult } = require('./virtual-display-result');
 
 const execFileAsync = promisify(execFile);
 
@@ -19,6 +21,7 @@ let displayServer;
 let powerBlockerId;
 let tray;
 let settingsStore;
+let trustedDeviceStore;
 let settings = { ...DEFAULT_SETTINGS };
 let isQuitting = false;
 let trayHintShown = false;
@@ -80,10 +83,11 @@ function driverExchangePaths() {
 
 async function virtualDisplayStatus() {
   try {
-    const command = "$device = Get-PnpDevice -InstanceId 'ROOT\\MTTVDD\\*' -ErrorAction Stop | Select-Object -First 1; $device.Status";
+    const command = "$device = Get-PnpDevice -InstanceId 'ROOT\\MTTVDD\\*' -ErrorAction SilentlyContinue | Where-Object Status -eq 'OK' | Select-Object -First 1; $device.Status";
     const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { windowsHide: true, timeout: 10000 });
     const status = stdout.trim();
-    return { installed: Boolean(status), ready: status.toUpperCase() === 'OK', status };
+    const ready = status.toUpperCase() === 'OK';
+    return { installed: ready, ready, status };
   } catch {
     return { installed: false, ready: false, status: '' };
   }
@@ -111,7 +115,7 @@ async function runVirtualDisplayOperation(operation, settings = {}) {
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 400));
     try {
-      const result = JSON.parse(await fs.readFile(exchange.result, 'utf8'));
+      const result = parseVirtualDisplayResult(await fs.readFile(exchange.result, 'utf8'));
       if (result.token !== token) continue;
       if (!result.success) throw new Error(result.error || result.message);
       return result;
@@ -169,6 +173,8 @@ async function createWindow() {
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
   settingsStore = createSettingsStore(app.getPath('userData'));
+  trustedDeviceStore = createTrustedDeviceStore(app.getPath('userData'));
+  await trustedDeviceStore.load();
   settings = await settingsStore.load();
   if (settings.autoStart) applyAutoStart(true);
   displayServer = createDisplayServer({
@@ -176,6 +182,8 @@ app.whenReady().then(async () => {
     pin: PIN,
     port: PORT,
     isPinAuthorized: (supplied) => supplied === PIN || Boolean(settings.masterCode && supplied === settings.masterCode),
+    isDeviceAuthorized: (token) => trustedDeviceStore.isAuthorized(token),
+    registerDevice: () => trustedDeviceStore.register(),
     onSessionCountChanged: (count) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('session-count', count);
     }

@@ -6,12 +6,19 @@ const path = require('node:path');
 const { createDisplayServer } = require('../src/server');
 
 test('server protects signaling and completes a handshake', async (context) => {
+  const trustedTokens = new Set();
   const server = createDisplayServer({
     staticRoot: path.join(__dirname, '..', 'public'),
     pin: '123456',
     port: 0,
     host: '127.0.0.1',
-    isPinAuthorized: (pin) => pin === '123456' || pin === '654321'
+    isPinAuthorized: (pin) => pin === '123456' || pin === '654321',
+    isDeviceAuthorized: (token) => trustedTokens.has(token),
+    registerDevice: async () => {
+      const token = 'trusted-device-token';
+      trustedTokens.add(token);
+      return token;
+    }
   });
   const address = await server.start();
   context.after(() => server.stop());
@@ -22,6 +29,15 @@ test('server protects signaling and completes a handshake', async (context) => {
 
   const masterCodeAccepted = await fetch(`${base}/api/config`, { headers: { 'X-Pairing-Pin': '654321' } });
   assert.equal(masterCodeAccepted.status, 200);
+
+  const deniedPairing = await fetch(`${base}/api/pair`, { method: 'POST', headers: { 'X-Pairing-Pin': '000000' } });
+  assert.equal(deniedPairing.status, 403);
+
+  const paired = await fetch(`${base}/api/pair`, { method: 'POST', headers: { 'X-Pairing-Pin': '123456' } });
+  assert.equal(paired.status, 201);
+  const { deviceToken } = await paired.json();
+  const trustedDeviceAccepted = await fetch(`${base}/api/config`, { headers: { 'X-Device-Token': deviceToken } });
+  assert.equal(trustedDeviceAccepted.status, 200);
 
   const created = await fetch(`${base}/api/sessions`, {
     method: 'POST',

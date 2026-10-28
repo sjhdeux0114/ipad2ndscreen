@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { parseVirtualDisplayResult } = require('../src/virtual-display-result');
 
 const root = path.join(__dirname, '..');
 
@@ -20,4 +21,13 @@ test('release package includes the elevated helper and signed driver payload', (
   for (const file of ['mttvdd.cat', 'MttVDD.dll', 'MttVDD.inf']) {
     assert.ok(fs.existsSync(path.join(root, 'vendor', 'virtual-display-driver', 'driver', file)), file);
   }
+});
+
+test('elevated helper results are accepted in camelCase and legacy PascalCase', () => {
+  assert.deepEqual(parseVirtualDisplayResult('{"token":"new","success":true,"message":"ok","error":null}'), {
+    token: 'new', success: true, message: 'ok', error: null
+  });
+  assert.deepEqual(parseVirtualDisplayResult('{"Token":"old","Success":false,"Message":"failed","Error":"reason"}'), {
+    token: 'old', success: false, message: 'failed', error: 'reason'
+  });
 });

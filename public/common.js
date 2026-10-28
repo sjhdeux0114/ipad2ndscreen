@@ -1,12 +1,19 @@
 'use strict';
 
 window.iPadDisplay = {
-  async api(path, pin, options = {}) {
-    const headers = { ...(options.headers || {}), 'X-Pairing-Pin': pin };
+  async api(path, credentials, options = {}) {
+    const normalized = typeof credentials === 'string' ? { pin: credentials } : (credentials || {});
+    const headers = { ...(options.headers || {}) };
+    if (normalized.pin) headers['X-Pairing-Pin'] = normalized.pin;
+    if (normalized.deviceToken) headers['X-Device-Token'] = normalized.deviceToken;
     if (options.body !== undefined) headers['Content-Type'] = 'application/json';
     const response = await fetch(path, { ...options, headers });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+    if (!response.ok) {
+      const error = new Error(payload.error || `Request failed (${response.status})`);
+      error.status = response.status;
+      throw error;
+    }
     return payload;
   },
 

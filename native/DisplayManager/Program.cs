@@ -2,14 +2,17 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Xml.Linq;
 
 internal static class Program
 {
     private const string HardwareId = @"Root\MttVDD";
+    private const string DeviceInstancePrefix = @"ROOT\MTTVDD\";
+    private const string LegacyDeviceInstancePrefix = @"ROOT\IPADDISPLAYVIRTUALMONITOR\";
+    private const string ExpectedSignerThumbprint = "3CF8CF26D8BA266C3A483AB7D26D4A818E317D76";
     private const uint InstallFlagForce = 0x00000001;
-    private const uint InstallFlagNonInteractive = 0x00000004;
     private static readonly Guid DisplayClassGuid = new("4D36E968-E325-11CE-BFC1-08002BE10318");
     private static readonly int[] DpiScales = [100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500];
     private static readonly Dictionary<string, string> ExpectedHashes = new(StringComparer.OrdinalIgnoreCase)
@@ -43,7 +46,10 @@ internal static class Program
         catch (Exception error)
         {
             Directory.CreateDirectory(dataDirectory);
-            WriteResult(resultPath, new Result(command?.Token ?? string.Empty, false, "가상 디스플레이 작업에 실패했습니다.", error.Message));
+            var detail = error is Win32Exception win32
+                ? $"{error.Message} (Windows 오류 0x{win32.NativeErrorCode:X8}: {new Win32Exception(win32.NativeErrorCode).Message})"
+                : error.Message;
+            WriteResult(resultPath, new Result(command?.Token ?? string.Empty, false, "가상 디스플레이 작업에 실패했습니다.", detail));
             return 1;
         }
     }
@@ -52,10 +58,11 @@ internal static class Program
     {
         var driverDirectory = FindDriverDirectory();
         VerifyDriverFiles(driverDirectory);
+        VerifyDriverPublisher(driverDirectory);
         WriteSettings(command.Width, command.Height);
-        if (!DeviceExists()) CreateRootDevice();
+        PrepareRootDevice();
         var infPath = Path.Combine(driverDirectory, "MttVDD.inf");
-        if (!UpdateDriverForPlugAndPlayDevices(IntPtr.Zero, HardwareId, infPath, InstallFlagForce | InstallFlagNonInteractive, out var reboot))
+        if (!UpdateDriverForPlugAndPlayDevices(IntPtr.Zero, HardwareId, infPath, InstallFlagForce, out var reboot))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "서명된 가상 디스플레이 드라이버를 설치하지 못했습니다.");
         RestartDevice();
         ApplyExtendedTopology();
@@ -66,26 +73,17 @@ internal static class Program
 
     private static string Configure(Command command)
     {
-        if (!DeviceExists()) return Install(command);
-        WriteSettings(command.Width, command.Height);
-        RestartDevice();
-        ApplyExtendedTopology();
-        Thread.Sleep(1800);
-        var scaleMessage = TrySetVirtualDisplayScale(command.Scale);
-        return $"가상 확장 화면을 {command.Width} × {command.Height}, {command.Scale}%로 적용했습니다.{scaleMessage}";
+        var message = Install(command);
+        return message.Replace("만들었습니다.", "적용했습니다.");
     }
 
     private static string Remove()
     {
-        var infoSet = OpenVirtualDevice(out var device);
-        if (infoSet == InvalidHandleValue) return "설치된 가상 디스플레이가 없습니다.";
-        try
-        {
-            if (!DiUninstallDevice(IntPtr.Zero, infoSet, ref device, 0, out var reboot))
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "가상 디스플레이 장치를 제거하지 못했습니다.");
-            return reboot ? "가상 디스플레이를 제거했습니다. Windows를 다시 시작해 주세요." : "가상 디스플레이를 제거했습니다.";
-        }
-        finally { SetupDiDestroyDeviceInfoList(infoSet); }
+        var found = UninstallDevices(DeviceInstancePrefix, out var reboot);
+        found |= UninstallDevices(LegacyDeviceInstancePrefix, out var legacyReboot);
+        reboot |= legacyReboot;
+        if (!found) return "설치된 가상 디스플레이가 없습니다.";
+        return reboot ? "가상 디스플레이를 제거했습니다. Windows를 다시 시작해 주세요." : "가상 디스플레이를 제거했습니다.";
     }
 
     private static void ValidateCommand(Command command)
@@ -96,7 +94,11 @@ internal static class Program
         if (!DpiScales.Contains(command.Scale) || command.Scale == 225 || command.Scale > 300) throw new InvalidOperationException("지원하지 않는 Windows 배율입니다.");
     }
 
-    private static JsonSerializerOptions JsonOptions() => new() { PropertyNameCaseInsensitive = true };
+    private static JsonSerializerOptions JsonOptions() => new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     private static void WriteResult(string path, Result result)
     {
@@ -128,6 +130,19 @@ internal static class Program
         }
     }
 
+    private static void VerifyDriverPublisher(string directory)
+    {
+        var certificates = new X509Certificate2Collection();
+#pragma warning disable SYSLIB0057 // Windows catalogs are PKCS#7; collection Import is the supported loader for this format.
+        certificates.Import(File.ReadAllBytes(Path.Combine(directory, "mttvdd.cat")));
+#pragma warning restore SYSLIB0057
+        var signer = certificates.Cast<X509Certificate2>().SingleOrDefault(certificate =>
+            certificate.Thumbprint.Equals(ExpectedSignerThumbprint, StringComparison.OrdinalIgnoreCase));
+        if (signer is null) throw new InvalidDataException("드라이버 서명 인증서가 예상한 게시자와 일치하지 않습니다.");
+        if (DateTime.Now < signer.NotBefore || DateTime.Now > signer.NotAfter)
+            throw new InvalidDataException("드라이버 서명 인증서의 유효 기간이 올바르지 않습니다.");
+    }
+
     private static void WriteSettings(int width, int height)
     {
         var targetDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System).Substring(0, 3), "VirtualDisplayDriver");
@@ -146,12 +161,27 @@ internal static class Program
         document.Save(Path.Combine(targetDirectory, "vdd_settings.xml"));
     }
 
-    private static bool DeviceExists()
+    private static void PrepareRootDevice()
     {
-        var infoSet = OpenVirtualDevice(out _);
-        if (infoSet == InvalidHandleValue) return false;
-        SetupDiDestroyDeviceInfoList(infoSet);
-        return true;
+        UninstallDevices(LegacyDeviceInstancePrefix, out _);
+        var infoSet = OpenVirtualDevices(out var devices);
+        if (infoSet == InvalidHandleValue)
+        {
+            CreateRootDevice();
+            return;
+        }
+        try
+        {
+            var device = devices[0];
+            SetHardwareId(infoSet, ref device);
+            foreach (var candidate in devices.Skip(1))
+            {
+                var duplicate = candidate;
+                if (!DiUninstallDevice(IntPtr.Zero, infoSet, ref duplicate, 0, out _))
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "중복 가상 디스플레이 장치를 정리하지 못했습니다.");
+            }
+        }
+        finally { SetupDiDestroyDeviceInfoList(infoSet); }
     }
 
     private static void CreateRootDevice()
@@ -162,13 +192,37 @@ internal static class Program
         try
         {
             var device = NewDeviceInfoData();
-            if (!SetupDiCreateDeviceInfo(infoSet, "iPadDisplayVirtualMonitor", ref classGuid, "iPad Display Virtual Monitor", IntPtr.Zero, DicdGenerateId, ref device))
+            if (!SetupDiCreateDeviceInfo(infoSet, "MttVDD", ref classGuid, "iPad Display Virtual Monitor", IntPtr.Zero, DicdGenerateId, ref device))
                 throw new Win32Exception(Marshal.GetLastWin32Error());
-            var ids = System.Text.Encoding.Unicode.GetBytes(HardwareId + "\0\0");
-            if (!SetupDiSetDeviceRegistryProperty(infoSet, ref device, SpdrpHardwareId, ids, (uint)ids.Length))
-                throw new Win32Exception(Marshal.GetLastWin32Error());
+            SetHardwareId(infoSet, ref device);
             if (!SetupDiCallClassInstaller(DifRegisterDevice, infoSet, ref device))
                 throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+        finally { SetupDiDestroyDeviceInfoList(infoSet); }
+    }
+
+    private static void SetHardwareId(IntPtr infoSet, ref SP_DEVINFO_DATA device)
+    {
+        var ids = System.Text.Encoding.Unicode.GetBytes(HardwareId + "\0\0");
+        if (!SetupDiSetDeviceRegistryProperty(infoSet, ref device, SpdrpHardwareId, ids, (uint)ids.Length))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "가상 디스플레이 하드웨어 ID를 설정하지 못했습니다.");
+    }
+
+    private static bool UninstallDevices(string instancePrefix, out bool reboot)
+    {
+        var infoSet = OpenVirtualDevices(out var devices, instancePrefix);
+        reboot = false;
+        if (infoSet == InvalidHandleValue) return false;
+        try
+        {
+            foreach (var candidate in devices)
+            {
+                var device = candidate;
+                if (!DiUninstallDevice(IntPtr.Zero, infoSet, ref device, 0, out var deviceReboot))
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "가상 디스플레이 장치를 제거하지 못했습니다.");
+                reboot |= deviceReboot;
+            }
+            return true;
         }
         finally { SetupDiDestroyDeviceInfoList(infoSet); }
     }
@@ -188,9 +242,16 @@ internal static class Program
 
     private static IntPtr OpenVirtualDevice(out SP_DEVINFO_DATA matchingDevice)
     {
+        var infoSet = OpenVirtualDevices(out var devices);
+        matchingDevice = devices.FirstOrDefault();
+        return infoSet;
+    }
+
+    private static IntPtr OpenVirtualDevices(out List<SP_DEVINFO_DATA> matchingDevices, string instancePrefix = DeviceInstancePrefix)
+    {
         var classGuid = DisplayClassGuid;
         var infoSet = SetupDiGetClassDevsByClass(ref classGuid, null, IntPtr.Zero, DigcfPresent);
-        matchingDevice = NewDeviceInfoData();
+        matchingDevices = [];
         if (infoSet == InvalidHandleValue) return InvalidHandleValue;
         for (uint index = 0; ; index++)
         {
@@ -198,12 +259,10 @@ internal static class Program
             if (!SetupDiEnumDeviceInfo(infoSet, index, ref device)) break;
             var instanceId = new System.Text.StringBuilder(512);
             if (SetupDiGetDeviceInstanceId(infoSet, ref device, instanceId, instanceId.Capacity, out _)
-                && instanceId.ToString().StartsWith(@"ROOT\MTTVDD\", StringComparison.OrdinalIgnoreCase))
-            {
-                matchingDevice = device;
-                return infoSet;
-            }
+                && instanceId.ToString().StartsWith(instancePrefix, StringComparison.OrdinalIgnoreCase))
+                matchingDevices.Add(device);
         }
+        if (matchingDevices.Count > 0) return infoSet;
         SetupDiDestroyDeviceInfoList(infoSet);
         return InvalidHandleValue;
     }
@@ -223,8 +282,14 @@ internal static class Program
 
     private static void ApplyExtendedTopology()
     {
+        if (FindVirtualDisplayTarget() is not null) return;
         var result = SetDisplayConfig(0, IntPtr.Zero, 0, IntPtr.Zero, SdcTopologyExtend | SdcApply | SdcAllowChanges);
-        if (result != 0) throw new Win32Exception(result, "Windows 확장 디스플레이 모드를 적용하지 못했습니다.");
+        if (result != 0)
+        {
+            Thread.Sleep(600);
+            if (FindVirtualDisplayTarget() is null)
+                throw new Win32Exception(result, "Windows 확장 디스플레이 모드를 적용하지 못했습니다.");
+        }
     }
 
     private static string TrySetVirtualDisplayScale(int requestedScale)
@@ -313,7 +378,7 @@ internal static class Program
     [DllImport("newdev.dll", SetLastError = true)] private static extern bool DiUninstallDevice(IntPtr hwndParent, IntPtr deviceInfoSet, ref SP_DEVINFO_DATA deviceInfoData, uint flags, out bool needReboot);
     [DllImport("setupapi.dll", SetLastError = true)] private static extern IntPtr SetupDiCreateDeviceInfoList(ref Guid classGuid, IntPtr hwndParent);
     [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool SetupDiCreateDeviceInfo(IntPtr deviceInfoSet, string deviceName, ref Guid classGuid, string deviceDescription, IntPtr hwndParent, uint creationFlags, ref SP_DEVINFO_DATA deviceInfoData);
-    [DllImport("setupapi.dll", SetLastError = true)] private static extern bool SetupDiSetDeviceRegistryProperty(IntPtr deviceInfoSet, ref SP_DEVINFO_DATA deviceInfoData, uint property, byte[] propertyBuffer, uint propertyBufferSize);
+    [DllImport("setupapi.dll", EntryPoint = "SetupDiSetDeviceRegistryPropertyW", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool SetupDiSetDeviceRegistryProperty(IntPtr deviceInfoSet, ref SP_DEVINFO_DATA deviceInfoData, uint property, byte[] propertyBuffer, uint propertyBufferSize);
     [DllImport("setupapi.dll", SetLastError = true)] private static extern bool SetupDiCallClassInstaller(uint installFunction, IntPtr deviceInfoSet, ref SP_DEVINFO_DATA deviceInfoData);
     [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr SetupDiGetClassDevs(IntPtr classGuid, string enumerator, IntPtr hwndParent, uint flags);
     [DllImport("setupapi.dll", EntryPoint = "SetupDiGetClassDevsW", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr SetupDiGetClassDevsByClass(ref Guid classGuid, string? enumerator, IntPtr hwndParent, uint flags);

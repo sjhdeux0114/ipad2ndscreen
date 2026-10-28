@@ -5,13 +5,17 @@ const video = document.querySelector('#display');
 const pairing = document.querySelector('#pairing');
 const form = document.querySelector('#pair-form');
 const pinInput = document.querySelector('#pin');
+const pairingInstructions = document.querySelector('#pairing-instructions');
+const connectButton = document.querySelector('#connect-button');
+const forgetDeviceButton = document.querySelector('#forget-device');
 const status = document.querySelector('#receiver-status');
 const errorElement = document.querySelector('#receiver-error');
 const fullscreen = document.querySelector('#fullscreen');
 const latencyStats = document.querySelector('#latency-stats');
 let peer;
 let sessionId;
-let pin;
+let credentials;
+let deviceToken = loadDeviceToken();
 let receiverEventSequence = 0;
 let inputChannel;
 let queuedReceiverCandidates = [];
@@ -29,11 +33,52 @@ function fail(error) {
   setStatus('연결 실패');
 }
 
+function loadDeviceToken() {
+  try { return localStorage.getItem('ipadDisplayDeviceToken') || ''; } catch { return ''; }
+}
+
+function saveDeviceToken(token) {
+  try { localStorage.setItem('ipadDisplayDeviceToken', token); } catch { /* Safari may block storage in private mode. */ }
+}
+
+function clearDeviceToken() {
+  deviceToken = '';
+  credentials = undefined;
+  try { localStorage.removeItem('ipadDisplayDeviceToken'); } catch { /* Storage may be unavailable. */ }
+  updatePairingForm();
+}
+
+function updatePairingForm() {
+  const trusted = Boolean(deviceToken);
+  pinInput.hidden = trusted;
+  pinInput.required = !trusted;
+  forgetDeviceButton.hidden = !trusted;
+  connectButton.textContent = trusted ? '바로 접속' : '연결';
+  pairingInstructions.textContent = trusted
+    ? '등록된 기기입니다. 버튼을 누르면 코드 없이 연결됩니다.'
+    : 'PC에 표시된 6자리 PIN 또는 설정한 마스터 코드를 입력하세요.';
+}
+
 async function connect() {
-  pin = pinInput.value.trim();
   errorElement.textContent = '';
   setStatus('Windows 서버 확인 중…');
-  const config = await api('/api/config', pin);
+  try {
+    if (!deviceToken) {
+      const pin = pinInput.value.trim();
+      const paired = await api('/api/pair', { pin }, { method: 'POST' });
+      deviceToken = paired.deviceToken;
+      saveDeviceToken(deviceToken);
+      updatePairingForm();
+    }
+    credentials = { deviceToken };
+    var config = await api('/api/config', credentials);
+  } catch (error) {
+    if (deviceToken && error.status === 403) {
+      clearDeviceToken();
+      throw new Error('기기 등록이 만료되었습니다. 코드를 다시 입력해 주세요.');
+    }
+    throw error;
+  }
 
   peer?.close();
   clearInterval(telemetryTimer);
@@ -84,7 +129,7 @@ async function connect() {
 
   const offer = await peer.createOffer();
   await peer.setLocalDescription(offer);
-  const session = await api('/api/sessions', pin, {
+  const session = await api('/api/sessions', credentials, {
     method: 'POST', body: JSON.stringify({ offer: peer.localDescription.toJSON() })
   });
   sessionId = session.sessionId;
@@ -96,7 +141,7 @@ async function connect() {
 }
 
 async function sendReceiverCandidate(candidate, targetSessionId = sessionId) {
-  await api(`/api/sessions/${targetSessionId}/receiver-candidate`, pin, {
+  await api(`/api/sessions/${targetSessionId}/receiver-candidate`, credentials, {
     method: 'POST', body: JSON.stringify({ candidate })
   });
 }
@@ -104,7 +149,7 @@ async function sendReceiverCandidate(candidate, targetSessionId = sessionId) {
 async function pollReceiverEvents(connection, currentSessionId) {
   while (peer === connection && !['closed', 'failed'].includes(connection.connectionState)) {
     try {
-      const { events } = await api(`/api/sessions/${currentSessionId}/events?since=${receiverEventSequence}`, pin);
+      const { events } = await api(`/api/sessions/${currentSessionId}/events?since=${receiverEventSequence}`, credentials);
       for (const event of events) {
         receiverEventSequence = Math.max(receiverEventSequence, event.id);
         if (event.type === 'answer' && !peer.remoteDescription) {
@@ -181,6 +226,11 @@ video.addEventListener('pointerdown', (event) => { video.setPointerCapture(event
 video.addEventListener('pointermove', (event) => sendPointer(event, 'move'));
 video.addEventListener('pointerup', (event) => sendPointer(event, 'up'));
 form.addEventListener('submit', (event) => { event.preventDefault(); void connect().catch(fail); });
+forgetDeviceButton.addEventListener('click', () => {
+  clearDeviceToken();
+  pinInput.focus();
+  setStatus('새 코드 입력 대기 중');
+});
 fullscreen.addEventListener('click', () => {
   if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
   else if (document.documentElement.requestFullscreen) void document.documentElement.requestFullscreen();
@@ -188,3 +238,4 @@ fullscreen.addEventListener('click', () => {
 
 const pinFromUrl = new URLSearchParams(location.search).get('pin');
 if (/^\d{6}$/.test(pinFromUrl || '')) pinInput.value = pinFromUrl;
+updatePairingForm();

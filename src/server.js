@@ -35,12 +35,26 @@ async function readJson(request) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-function isAuthorized(request, url, pin, isPinAuthorized) {
+function hasAuthorizedPin(request, url, pin, isPinAuthorized) {
   const supplied = request.headers['x-pairing-pin'] || url.searchParams.get('pin');
   return isPinAuthorized ? isPinAuthorized(String(supplied || '')) : supplied === pin;
 }
 
-function createDisplayServer({ staticRoot, pin, isPinAuthorized, port = 5178, host = '0.0.0.0', onSessionCountChanged = () => {} }) {
+function isAuthorized(request, url, pin, isPinAuthorized, isDeviceAuthorized) {
+  const token = request.headers['x-device-token'];
+  return hasAuthorizedPin(request, url, pin, isPinAuthorized) || isDeviceAuthorized(String(token || ''));
+}
+
+function createDisplayServer({
+  staticRoot,
+  pin,
+  isPinAuthorized,
+  isDeviceAuthorized = () => false,
+  registerDevice = async () => { throw new Error('Trusted device registration is unavailable.'); },
+  port = 5178,
+  host = '0.0.0.0',
+  onSessionCountChanged = () => {}
+}) {
   const store = new SignalingStore();
 
   const server = http.createServer(async (request, response) => {
@@ -49,7 +63,16 @@ function createDisplayServer({ staticRoot, pin, isPinAuthorized, port = 5178, ho
 
     try {
       if (url.pathname.startsWith('/api/')) {
-        if (!isAuthorized(request, url, pin, isPinAuthorized)) {
+        if (method === 'POST' && url.pathname === '/api/pair') {
+          if (!hasAuthorizedPin(request, url, pin, isPinAuthorized)) {
+            sendJson(response, 403, { error: 'Pairing PIN is incorrect.' });
+            return;
+          }
+          sendJson(response, 201, { deviceToken: await registerDevice() });
+          return;
+        }
+
+        if (!isAuthorized(request, url, pin, isPinAuthorized, isDeviceAuthorized)) {
           sendJson(response, 403, { error: 'Pairing PIN is incorrect.' });
           return;
         }

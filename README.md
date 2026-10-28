@@ -36,7 +36,7 @@ npm start
 
 앱 창의 X 버튼은 프로그램을 종료하지 않고 Windows 알림 영역으로 숨깁니다. 트레이 아이콘을 클릭하면 다시 열리고, 우클릭 메뉴의 **완전히 종료**로 서버를 끝낼 수 있습니다. 설정에서는 Windows 자동 실행을 켜고, 실행할 때마다 바뀌는 PIN 대신 함께 사용할 고정 6자리 마스터 코드를 저장할 수 있습니다.
 
-가상 디스플레이 드라이버는 [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver)의 서명된 x64 릴리스(25.7.23, MIT)를 포함합니다. 드라이버 설치·변경·제거 시에만 Windows 관리자 승인을 요청하며, 실행 전 포함 파일의 SHA-256을 확인합니다. Windows 버전이나 디스플레이 드라이버 조합에 따라 배율 적용이 거부되면 Windows **설정 → 시스템 → 디스플레이**에서 같은 값을 직접 선택할 수 있습니다.
+가상 디스플레이 드라이버는 [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver)의 서명된 x64 릴리스(25.7.23, MIT)를 포함합니다. 드라이버 설치·변경·제거 시에만 Windows 관리자 승인을 요청하며, 실행 전 포함 파일의 SHA-256과 SignPath 게시자 인증서 지문을 확인합니다. 처음 설치할 때 Windows가 드라이버 게시자 확인 창을 추가로 표시할 수 있습니다. Windows 버전이나 디스플레이 드라이버 조합에 따라 배율 적용이 거부되면 Windows **설정 → 시스템 → 디스플레이**에서 같은 값을 직접 선택할 수 있습니다.
 
 Windows 방화벽이 묻는 경우 사설 네트워크에서 Node/Electron의 인바운드 연결을 허용해야 합니다. 게스트 Wi-Fi나 AP 격리가 켜진 공유기에서는 기기 간 통신이 차단될 수 있습니다.
 

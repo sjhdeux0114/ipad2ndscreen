@@ -14,11 +14,12 @@
   <main id="pairing" class="pairing-card">
     <p class="eyebrow">IPAD DISPLAY</p>
     <h1>Windows 화면 연결</h1>
-    <p>PC에 표시된 6자리 PIN 또는 설정한 마스터 코드를 입력하세요.</p>
+    <p id="pairing-instructions">PC에 표시된 6자리 PIN 또는 설정한 마스터 코드를 입력하세요.</p>
     <form id="pair-form">
       <input id="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" autocomplete="one-time-code" aria-label="페어링 PIN" required>
-      <button class="button primary" type="submit">연결</button>
+      <button id="connect-button" class="button primary" type="submit">연결</button>
     </form>
+    <button id="forget-device" class="text-button" type="button" hidden>다른 코드로 연결</button>
     <p id="receiver-status" class="receiver-status">연결 대기 중</p>
     <p id="receiver-error" class="error" role="alert"></p>
   </main>
