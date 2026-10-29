@@ -12,6 +12,22 @@ const status = document.querySelector('#receiver-status');
 const errorElement = document.querySelector('#receiver-error');
 const fullscreen = document.querySelector('#fullscreen');
 const latencyStats = document.querySelector('#latency-stats');
+const toggleStats = document.querySelector('#toggle-stats');
+let statsVisible = true;
+try { statsVisible = localStorage.getItem('ipadDisplayStatsVisible') !== 'false'; } catch { /* Storage may be unavailable. */ }
+
+function updateStatsVisibility() {
+  latencyStats.hidden = !statsVisible || !latencyStats.textContent;
+  toggleStats.textContent = statsVisible ? '통계 끄기' : '통계 켜기';
+  toggleStats.setAttribute('aria-pressed', String(statsVisible));
+}
+
+toggleStats.addEventListener('click', () => {
+  statsVisible = !statsVisible;
+  try { localStorage.setItem('ipadDisplayStatsVisible', String(statsVisible)); } catch { /* Keep the preference for this session. */ }
+  updateStatsVisibility();
+});
+updateStatsVisibility();
 let peer;
 let sessionId;
 let credentials;
@@ -121,6 +137,7 @@ async function connect() {
     if (connection.connectionState === 'connected') {
       pairing.classList.add('connected');
       fullscreen.hidden = false;
+      toggleStats.hidden = false;
       startTelemetry(connection);
     } else if (['disconnected', 'failed', 'closed'].includes(connection.connectionState)) {
       clearInterval(telemetryTimer);
@@ -194,8 +211,8 @@ function startTelemetry(connection) {
       packetsLost: inbound.packetsLost || 0,
       codec: codec?.mimeType?.replace('video/', '') || 'H.264'
     };
-    latencyStats.hidden = false;
     latencyStats.textContent = `${telemetry.fps}fps · RTT ${telemetry.rttMs ?? '-'}ms · buffer ${telemetry.jitterMs ?? '-'}ms · decode ${telemetry.decodeMs ?? '-'}ms`;
+    updateStatsVisibility();
     if (inputChannel?.readyState === 'open') inputChannel.send(JSON.stringify(telemetry));
     previousInbound = {
       jitterBufferEmittedCount: inbound.jitterBufferEmittedCount || 0,
