@@ -39,6 +39,24 @@ let queuedHostCandidates = [];
 let telemetryTimer;
 let previousInbound;
 let previousStatsAt;
+let controlsHideTimer;
+
+function hideControls() {
+  clearTimeout(controlsHideTimer);
+  fullscreen.hidden = true;
+  toggleStats.hidden = true;
+}
+
+function revealControls() {
+  if (peer?.connectionState !== 'connected') return;
+  clearTimeout(controlsHideTimer);
+  fullscreen.hidden = false;
+  toggleStats.hidden = false;
+  controlsHideTimer = setTimeout(hideControls, 5000);
+}
+
+// Capture taps on the video, overlays, and buttons without consuming their input.
+document.addEventListener('pointerdown', revealControls, { capture: true, passive: true });
 
 function setStatus(text) {
   status.textContent = text;
@@ -76,6 +94,7 @@ function updatePairingForm() {
 }
 
 async function connect() {
+  hideControls();
   errorElement.textContent = '';
   setStatus('Windows 서버 확인 중…');
   try {
@@ -136,10 +155,10 @@ async function connect() {
     setStatus(labels[connection.connectionState] || connection.connectionState);
     if (connection.connectionState === 'connected') {
       pairing.classList.add('connected');
-      fullscreen.hidden = false;
-      toggleStats.hidden = false;
+      hideControls();
       startTelemetry(connection);
     } else if (['disconnected', 'failed', 'closed'].includes(connection.connectionState)) {
+      hideControls();
       clearInterval(telemetryTimer);
     }
   });
