@@ -17,6 +17,7 @@ test('host exposes every requested Windows scale', () => {
 
 test('release package includes the elevated helper and signed driver payload', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.match(packageJson.scripts.dist, /--publish never/);
   assert.ok(packageJson.build.files.includes('native/DisplayManager/publish/DisplayManager.exe'));
   for (const file of ['mttvdd.cat', 'MttVDD.dll', 'MttVDD.inf']) {
     assert.ok(fs.existsSync(path.join(root, 'vendor', 'virtual-display-driver', 'driver', file)), file);
