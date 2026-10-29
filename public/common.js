@@ -1,6 +1,11 @@
 'use strict';
 
 window.iPadDisplay = {
+  formatDecoderStats(stats) {
+    const efficiency = stats.powerEfficientDecoder === true ? '전력 효율: 예'
+      : stats.powerEfficientDecoder === false ? '전력 효율: 아니오' : '전력 효율: 미지원';
+    return `디코더: ${stats.decoderImplementation || '정보 미제공'} · ${efficiency} · 프레임 누락(누적): ${stats.framesDropped ?? '미지원'}`;
+  },
   async api(path, credentials, options = {}) {
     const normalized = typeof credentials === 'string' ? { pin: credentials } : (credentials || {});
     const headers = { ...(options.headers || {}) };

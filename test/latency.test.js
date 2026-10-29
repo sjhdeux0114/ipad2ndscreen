@@ -12,7 +12,7 @@ test('ultra-low-latency mode tunes both sender and Safari receiver', () => {
   const receiver = fs.readFileSync(path.join(root, 'public', 'receiver.js'), 'utf8');
   const common = fs.readFileSync(path.join(root, 'public', 'common.js'), 'utf8');
   assert.match(host, /maxBitrate/);
-  assert.match(host, /maxFramerate = 60/);
+  assert.match(host, /maxFramerate = tuning.frameRate/);
   assert.match(host, /maintain-framerate/);
   assert.match(receiver, /jitterBufferTarget = 0/);
   assert.match(receiver, /targetLatency: 'lowest'/);

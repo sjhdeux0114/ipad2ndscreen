@@ -14,7 +14,7 @@ const DEFAULT_SETTINGS = Object.freeze({
 function normalizeSettings(value = {}) {
   const masterCode = typeof value.masterCode === 'string' ? value.masterCode.trim() : '';
   if (masterCode && !/^\d{6}$/.test(masterCode)) throw new Error('마스터 코드는 숫자 6자리여야 합니다.');
-  const latencyProfile = ['ultra-low', 'balanced', 'quality'].includes(value.latencyProfile)
+  const latencyProfile = ['ultra-low', 'balanced', 'quality', 'text-30'].includes(value.latencyProfile)
     ? value.latencyProfile
     : DEFAULT_SETTINGS.latencyProfile;
   return {

@@ -1,6 +1,6 @@
 'use strict';
 
-const { api, preferH264 } = window.iPadDisplay;
+const { api, preferH264, formatDecoderStats } = window.iPadDisplay;
 const params = new URLSearchParams(location.search);
 const pin = params.get('pin');
 const peers = new Map();
@@ -72,29 +72,33 @@ function currentDimensions() {
 function streamTuning() {
   const { width, height } = currentDimensions();
   const profile = elements.latencyProfile.value;
-  const pixelsPerSecond = width * height * 60;
-  const factors = { 'ultra-low': 0.12, balanced: 0.18, quality: 0.28 };
+  const frameRate = profile === 'text-30' ? 30 : 60;
+  const pixelsPerSecond = width * height * frameRate;
+  const factors = { 'ultra-low': 0.12, balanced: 0.18, quality: 0.28, 'text-30': 0.28 };
   const limits = {
     'ultra-low': [12_000_000, 42_000_000],
     balanced: [16_000_000, 58_000_000],
-    quality: [20_000_000, 80_000_000]
+    quality: [20_000_000, 80_000_000],
+    'text-30': [10_000_000, 40_000_000]
   };
   const [minimum, maximum] = limits[profile] || limits['ultra-low'];
   return {
+    frameRate,
     bitrate: Math.max(minimum, Math.min(maximum, Math.round(pixelsPerSecond * (factors[profile] || factors['ultra-low'])))),
-    contentHint: profile === 'quality' ? 'detail' : 'motion',
-    degradationPreference: profile === 'quality' ? 'maintain-resolution' : 'maintain-framerate'
+    contentHint: profile === 'text-30' ? 'text' : profile === 'quality' ? 'detail' : 'motion',
+    degradationPreference: ['quality', 'text-30'].includes(profile) ? 'maintain-resolution' : 'maintain-framerate'
   };
 }
 
 async function tuneSender(sender) {
   if (!sender) return;
   const tuning = streamTuning();
+  if (sender.track && 'contentHint' in sender.track) sender.track.contentHint = tuning.contentHint;
   const apply = async (includePriority) => {
     const parameters = sender.getParameters();
     parameters.encodings ??= [{}];
     parameters.encodings[0].maxBitrate = tuning.bitrate;
-    parameters.encodings[0].maxFramerate = 60;
+    parameters.encodings[0].maxFramerate = tuning.frameRate;
     if (includePriority) parameters.encodings[0].priority = 'high';
     parameters.degradationPreference = tuning.degradationPreference;
     await sender.setParameters(parameters);
@@ -111,7 +115,7 @@ function updateTargetSummary() {
   if (!profile) return;
   const { width, height } = currentDimensions();
   const latencyLabel = elements.latencyProfile.selectedOptions[0]?.textContent || '초저지연';
-  elements.targetSummary.textContent = `${profile.model} · ${width} × ${height} · Windows 배율 ${elements.displayScale.value}% · ${latencyLabel} · 최대 60fps${profile.note ? ` · ${profile.note}` : ''}`;
+  elements.targetSummary.textContent = `${profile.model} · ${width} × ${height} · Windows 배율 ${elements.displayScale.value}% · ${latencyLabel} · 최대 ${streamTuning().frameRate}fps${profile.note ? ` · ${profile.note}` : ''}`;
   elements.deleteProfile.hidden = profile.brand !== '사용자';
   localStorage.setItem(SELECTED_PROFILE_KEY, profile.id);
   localStorage.setItem(DISPLAY_SCALE_KEY, elements.displayScale.value);
@@ -298,7 +302,7 @@ async function startCapture() {
         chromeMediaSourceId: selectedSource.id,
         maxWidth: width,
         maxHeight: height,
-        maxFrameRate: 60
+        maxFrameRate: streamTuning().frameRate
       }
     }
   });
@@ -316,7 +320,7 @@ async function startCapture() {
   for (const track of previousStream?.getTracks() || []) track.stop();
   elements.preview.srcObject = stream;
   elements.streamTitle.textContent = `${selectedSource.name} 전송 준비 완료`;
-  elements.streamDetail.textContent = `${width} × ${height} · 최대 60fps · iPad 연결 대기 중`;
+  elements.streamDetail.textContent = `${width} × ${height} · 최대 ${tuning.frameRate}fps · iPad 연결 대기 중`;
   elements.start.textContent = '전송 소스 변경';
   if (!polling) void pollHostEvents();
 }
@@ -359,7 +363,7 @@ async function createPeer(sessionId, offer) {
       try {
         const message = JSON.parse(data);
         if (message.type === 'telemetry') {
-          elements.streamDetail.textContent = `iPad 연결됨 · ${message.fps || 0}fps · RTT ${message.rttMs ?? '-'}ms · 버퍼 ${message.jitterMs ?? '-'}ms · 디코드 ${message.decodeMs ?? '-'}ms · ${message.codec || 'H.264'}`;
+          elements.streamDetail.textContent = `iPad 연결됨 · ${message.fps || 0}fps · RTT ${message.rttMs ?? '-'}ms · 버퍼 ${message.jitterMs ?? '-'}ms · 디코드 ${message.decodeMs ?? '-'}ms · ${message.codec || 'H.264'} · ${formatDecoderStats(message)}`;
         }
       } catch {
         // Touch input messages are handled by the native input milestone.
@@ -425,10 +429,7 @@ elements.orientation.addEventListener('change', () => {
 elements.displayScale.addEventListener('change', updateTargetSummary);
 elements.latencyProfile.addEventListener('change', () => {
   updateTargetSummary();
-  for (const peer of peers.values()) {
-    const sender = peer.getSenders().find((item) => item.track?.kind === 'video');
-    void tuneSender(sender);
-  }
+  if (stream) void ensureCaptureStarted({ force: true }).catch(showError);
   void saveSettings({ announce: false }).catch(showError);
 });
 elements.settingsForm.addEventListener('submit', (event) => {

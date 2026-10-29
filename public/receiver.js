@@ -1,6 +1,6 @@
 'use strict';
 
-const { api, preferH264 } = window.iPadDisplay;
+const { api, preferH264, formatDecoderStats } = window.iPadDisplay;
 const video = document.querySelector('#display');
 const pairing = document.querySelector('#pairing');
 const form = document.querySelector('#pair-form');
@@ -228,9 +228,12 @@ function startTelemetry(connection) {
       jitterMs: emittedDelta > 0 ? Math.round((jitterDelta / emittedDelta) * 1000) : null,
       decodeMs: decodedDelta > 0 ? Math.round((decodeDelta / decodedDelta) * 1000 * 10) / 10 : null,
       packetsLost: inbound.packetsLost || 0,
+      decoderImplementation: inbound.decoderImplementation || null,
+      powerEfficientDecoder: typeof inbound.powerEfficientDecoder === 'boolean' ? inbound.powerEfficientDecoder : null,
+      framesDropped: Number.isFinite(inbound.framesDropped) ? inbound.framesDropped : null,
       codec: codec?.mimeType?.replace('video/', '') || 'H.264'
     };
-    latencyStats.textContent = `${telemetry.fps}fps · RTT ${telemetry.rttMs ?? '-'}ms · buffer ${telemetry.jitterMs ?? '-'}ms · decode ${telemetry.decodeMs ?? '-'}ms`;
+    latencyStats.textContent = `${telemetry.fps}fps · RTT ${telemetry.rttMs ?? '-'}ms · buffer ${telemetry.jitterMs ?? '-'}ms · decode ${telemetry.decodeMs ?? '-'}ms\n${formatDecoderStats(telemetry)}`;
     updateStatsVisibility();
     if (inputChannel?.readyState === 'open') inputChannel.send(JSON.stringify(telemetry));
     previousInbound = {
