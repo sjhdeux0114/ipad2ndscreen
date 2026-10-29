@@ -1,7 +1,8 @@
 'use strict';
 
-const { api, preferH264, formatDecoderStats } = window.iPadDisplay;
+const { api, preferH264, formatDecoderStats, formatPlaybackStats } = window.iPadDisplay;
 const video = document.querySelector('#display');
+const frameMonitor = window.createFrameMonitor(video, document);
 const pairing = document.querySelector('#pairing');
 const form = document.querySelector('#pair-form');
 const pinInput = document.querySelector('#pin');
@@ -14,10 +15,12 @@ const fullscreen = document.querySelector('#fullscreen');
 const latencyStats = document.querySelector('#latency-stats');
 const toggleStats = document.querySelector('#toggle-stats');
 let statsVisible = true;
+let latestTelemetryText = '';
 try { statsVisible = localStorage.getItem('ipadDisplayStatsVisible') !== 'false'; } catch { /* Storage may be unavailable. */ }
 
 function updateStatsVisibility() {
-  latencyStats.hidden = !statsVisible || !latencyStats.textContent;
+  if (statsVisible && latencyStats.textContent !== latestTelemetryText) latencyStats.textContent = latestTelemetryText;
+  latencyStats.hidden = !statsVisible || !latestTelemetryText;
   toggleStats.textContent = statsVisible ? '통계 끄기' : '통계 켜기';
   toggleStats.setAttribute('aria-pressed', String(statsVisible));
 }
@@ -115,6 +118,7 @@ async function connect() {
     throw error;
   }
 
+  frameMonitor.stop();
   peer?.close();
   clearInterval(telemetryTimer);
   receiverEventSequence = 0;
@@ -156,9 +160,11 @@ async function connect() {
     if (connection.connectionState === 'connected') {
       pairing.classList.add('connected');
       hideControls();
+      frameMonitor.start();
       startTelemetry(connection);
     } else if (['disconnected', 'failed', 'closed'].includes(connection.connectionState)) {
       hideControls();
+      frameMonitor.stop();
       clearInterval(telemetryTimer);
     }
   });
@@ -211,6 +217,7 @@ function startTelemetry(connection) {
   const collect = async () => {
     if (connection.connectionState !== 'connected') return;
     const report = await connection.getStats();
+    if (connection !== peer || connection.connectionState !== 'connected') return;
     const inbound = [...report.values()].find((item) => item.type === 'inbound-rtp' && item.kind === 'video');
     if (!inbound) return;
     const candidatePair = [...report.values()].find((item) => item.type === 'candidate-pair' && item.state === 'succeeded' && (item.nominated || item.selected));
@@ -223,6 +230,11 @@ function startTelemetry(connection) {
     const decodeDelta = previousInbound ? inbound.totalDecodeTime - previousInbound.totalDecodeTime : 0;
     const telemetry = {
       type: 'telemetry',
+      ...frameMonitor.sample(),
+      frameWidth: inbound.frameWidth || video.videoWidth || null,
+      frameHeight: inbound.frameHeight || video.videoHeight || null,
+      freezeCount: Number.isFinite(inbound.freezeCount) ? inbound.freezeCount : null,
+      totalFreezesDuration: Number.isFinite(inbound.totalFreezesDuration) ? inbound.totalFreezesDuration : null,
       fps: Math.round(inbound.framesPerSecond || (elapsedSeconds > 0 ? decodedDelta / elapsedSeconds : 0)),
       rttMs: Number.isFinite(candidatePair?.currentRoundTripTime) ? Math.round(candidatePair.currentRoundTripTime * 1000) : null,
       jitterMs: emittedDelta > 0 ? Math.round((jitterDelta / emittedDelta) * 1000) : null,
@@ -233,7 +245,7 @@ function startTelemetry(connection) {
       framesDropped: Number.isFinite(inbound.framesDropped) ? inbound.framesDropped : null,
       codec: codec?.mimeType?.replace('video/', '') || 'H.264'
     };
-    latencyStats.textContent = `${telemetry.fps}fps · RTT ${telemetry.rttMs ?? '-'}ms · buffer ${telemetry.jitterMs ?? '-'}ms · decode ${telemetry.decodeMs ?? '-'}ms\n${formatDecoderStats(telemetry)}`;
+    latestTelemetryText = `${telemetry.fps}fps · RTT ${telemetry.rttMs ?? '-'}ms · buffer ${telemetry.jitterMs ?? '-'}ms · decode ${telemetry.decodeMs ?? '-'}ms\n${formatDecoderStats(telemetry)}\n${formatPlaybackStats(telemetry)}`;
     updateStatsVisibility();
     if (inputChannel?.readyState === 'open') inputChannel.send(JSON.stringify(telemetry));
     previousInbound = {

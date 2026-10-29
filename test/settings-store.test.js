@@ -12,6 +12,7 @@ test('settings validate six digit master codes and latency profiles', () => {
     autoStart: true,
     masterCode: '123456',
     latencyProfile: 'balanced',
+    frameRate: 60,
     lastDisplaySource: null
   });
   assert.throws(() => normalizeSettings({ masterCode: '1234' }), /6자리/);
@@ -26,12 +27,14 @@ test('settings persist across restarts', async (context) => {
     autoStart: true,
     masterCode: '654321',
     latencyProfile: 'ultra-low',
+    frameRate: 30,
     lastDisplaySource: { id: 'screen:2:0', name: 'Screen 3', displayId: '123' }
   });
   assert.deepEqual(await store.load(), {
     autoStart: true,
     masterCode: '654321',
     latencyProfile: 'ultra-low',
+    frameRate: 30,
     lastDisplaySource: { id: 'screen:2:0', name: 'Screen 3', displayId: '123' }
   });
 });

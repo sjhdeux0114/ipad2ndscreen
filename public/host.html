@@ -51,24 +51,10 @@
       <div>
         <span class="step">2</span>
         <h2>가상 확장 디스플레이</h2>
-        <p>아래에서 기기·방향·배율을 고른 뒤 만들면 Windows에 새 모니터가 추가됩니다. 최초 한 번 관리자 승인이 필요합니다.</p>
+        <p>해상도를 선택하고 ‘해상도·배율 적용’을 누르면 Windows 확장 화면 크기도 변경됩니다. 적용 시 관리자 승인이 필요하며 화면이 잠시 끊길 수 있습니다.</p>
       </div>
-      <div class="virtual-display-actions">
-        <span id="virtual-display-status" class="driver-status">상태 확인 중…</span>
-        <button id="apply-virtual-display" class="button primary">가상 확장 화면 만들기</button>
-        <button id="remove-virtual-display" class="button danger" hidden>가상 화면 제거</button>
-      </div>
-      <p id="virtual-display-message" class="driver-message" aria-live="polite"></p>
-    </section>
-
-    <section class="panel">
-      <div class="section-title">
-        <div><span class="step">3</span><h2>전송할 디스플레이 선택</h2></div>
-        <button id="refresh" class="button secondary">새로 고침</button>
-      </div>
-      <div id="sources" class="source-grid" aria-live="polite"></div>
-      <div class="target-settings">
-        <label class="target-field">타겟 디스플레이
+      <div class="target-settings virtual-resolution-settings">
+        <label class="target-field">확장 화면 해상도 · 기기별 목록
           <select id="target-profile" aria-describedby="target-summary"></select>
         </label>
         <label>방향
@@ -88,14 +74,6 @@
             <option value="300">300%</option>
           </select>
         </label>
-        <label>스트리밍
-          <select id="latency-profile">
-            <option value="ultra-low" selected>초저지연 · 게임 우선</option>
-            <option value="balanced">균형</option>
-            <option value="quality">화질 우선</option>
-            <option value="text-30">글씨 우선 · 30fps · 해상도 유지</option>
-          </select>
-        </label>
         <button id="custom-profile-toggle" class="button secondary">커스텀 저장</button>
         <button id="delete-profile" class="button danger" hidden>선택 프로필 삭제</button>
       </div>
@@ -107,8 +85,33 @@
         <label>세로 <input id="custom-height" type="number" min="480" max="4320" value="1200" required></label>
         <button class="button primary" type="submit">프로필 저장</button>
       </form>
+      <div class="virtual-display-actions">
+        <span id="virtual-display-status" class="driver-status">상태 확인 중…</span>
+        <button id="apply-virtual-display" class="button primary">가상 확장 화면 만들기</button>
+        <button id="remove-virtual-display" class="button danger" hidden>가상 화면 제거</button>
+      </div>
+      <p id="virtual-display-message" class="driver-message" aria-live="polite"></p>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">
+        <div><span class="step">3</span><h2>전송할 디스플레이 선택</h2></div>
+        <button id="refresh" class="button secondary">새로 고침</button>
+      </div>
+      <div id="sources" class="source-grid" aria-live="polite"></div>
+      <div class="target-settings">
+        <label>전송 품질
+          <select id="latency-profile">
+            <option value="ultra-low" selected>초저지연 · 게임 우선</option>
+            <option value="balanced">균형</option>
+            <option value="quality">화질 우선</option>
+            <option value="text">글씨 우선 · 해상도 유지</option>
+          </select>
+        </label>
+        <label>전송 프레임 <select id="frame-rate"><option value="30">30fps</option><option value="60" selected>60fps</option></select></label>
+      </div>
       <div class="quality-row">
-        <p>초저지연 모드는 60fps와 입력 반응을 우선하고 네트워크 상태에 따라 화질을 조절합니다.</p>
+        <p>해상도는 위의 가상 확장 디스플레이에서 설정합니다. 여기서는 전송 품질과 프레임을 선택하세요.</p>
         <button id="start" class="button primary" disabled>화면 전송 시작</button>
       </div>
     </section>

@@ -58,7 +58,11 @@ select { margin-left: 8px; padding: 10px 12px; border: 1px solid var(--line); bo
 .target-field { flex: 1 1 430px; }
 .target-field select { width: calc(100% - 140px); }
 .target-summary { margin: 10px 0 16px; color: #c9d1e8; font-size: .9rem; }
-.virtual-display-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 28px; }
+.virtual-display-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.virtual-display-panel > * { min-width: 0; }
+.virtual-resolution-settings .target-field { flex: 1 1 100%; display: grid; gap: 8px; }
+.virtual-resolution-settings .target-field select { width: 100%; min-width: 0; margin-left: 0; }
+.virtual-display-panel .virtual-display-actions { justify-content: flex-start; }
 .virtual-display-panel h2 { display: inline; }
 .virtual-display-panel p { margin: 10px 0 0; }
 .virtual-display-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
@@ -86,7 +90,7 @@ select { margin-left: 8px; padding: 10px 12px; border: 1px solid var(--line); bo
 .receiver-page { overflow: hidden; background: #000; touch-action: none; }
 #display { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
 .pairing-card { position: fixed; z-index: 2; left: 50%; top: 50%; width: min(90vw, 430px); padding: 30px; border: 1px solid var(--line); border-radius: 24px; background: rgba(11, 16, 31, .94); box-shadow: 0 30px 80px rgba(0,0,0,.5); transform: translate(-50%, -50%); backdrop-filter: blur(20px); transition: opacity .25s, transform .25s; }
-.pairing-card.connected { pointer-events: none; opacity: 0; transform: translate(-50%, -47%); }
+.pairing-card.connected { display: none; }
 .pairing-card h1 { font-size: 2rem; }
 #pair-form { display: flex; gap: 10px; margin-top: 22px; }
 #pin { min-width: 0; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.06); color: white; font-size: 1.35rem; letter-spacing: .16em; text-align: center; }
@@ -112,3 +116,8 @@ select { margin-left: 8px; padding: 10px 12px; border: 1px solid var(--line); bo
 }
 
 .latency-stats { max-width: calc(100vw - 32px); white-space: pre-line; overflow-wrap: anywhere; pointer-events: none; }
+
+/* Keep the video overlay inexpensive on older tablet GPUs. */
+.receiver-page .latency-stats,
+.receiver-page .fullscreen-button,
+.receiver-page .stats-toggle { backdrop-filter: none; }

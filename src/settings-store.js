@@ -8,19 +8,22 @@ const DEFAULT_SETTINGS = Object.freeze({
   autoStart: false,
   masterCode: '',
   latencyProfile: 'ultra-low',
+  frameRate: 60,
   lastDisplaySource: null
 });
 
 function normalizeSettings(value = {}) {
   const masterCode = typeof value.masterCode === 'string' ? value.masterCode.trim() : '';
   if (masterCode && !/^\d{6}$/.test(masterCode)) throw new Error('마스터 코드는 숫자 6자리여야 합니다.');
-  const latencyProfile = ['ultra-low', 'balanced', 'quality', 'text-30'].includes(value.latencyProfile)
-    ? value.latencyProfile
+  const profile = value.latencyProfile === 'text-30' ? 'text' : value.latencyProfile;
+  const latencyProfile = ['ultra-low', 'balanced', 'quality', 'text'].includes(profile)
+    ? profile
     : DEFAULT_SETTINGS.latencyProfile;
   return {
     autoStart: Boolean(value.autoStart),
     masterCode,
     latencyProfile,
+    frameRate: [30, 60].includes(Number(value.frameRate)) ? Number(value.frameRate) : value.latencyProfile === 'text-30' ? 30 : 60,
     lastDisplaySource: normalizeDisplaySource(value.lastDisplaySource)
   };
 }

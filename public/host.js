@@ -1,6 +1,6 @@
 'use strict';
 
-const { api, preferH264, formatDecoderStats } = window.iPadDisplay;
+const { api, preferH264, formatDecoderStats, formatPlaybackStats } = window.iPadDisplay;
 const params = new URLSearchParams(location.search);
 const pin = params.get('pin');
 const peers = new Map();
@@ -25,6 +25,7 @@ const elements = {
   orientation: document.querySelector('#orientation'),
   displayScale: document.querySelector('#display-scale'),
   latencyProfile: document.querySelector('#latency-profile'),
+  frameRate: document.querySelector('#frame-rate'),
   targetSummary: document.querySelector('#target-summary'),
   customProfileToggle: document.querySelector('#custom-profile-toggle'),
   customProfileForm: document.querySelector('#custom-profile-form'),
@@ -72,21 +73,21 @@ function currentDimensions() {
 function streamTuning() {
   const { width, height } = currentDimensions();
   const profile = elements.latencyProfile.value;
-  const frameRate = profile === 'text-30' ? 30 : 60;
+  const frameRate = Number(elements.frameRate.value) === 30 ? 30 : 60;
   const pixelsPerSecond = width * height * frameRate;
-  const factors = { 'ultra-low': 0.12, balanced: 0.18, quality: 0.28, 'text-30': 0.28 };
+  const factors = { 'ultra-low': 0.12, balanced: 0.18, quality: 0.28, text: 0.28 };
   const limits = {
     'ultra-low': [12_000_000, 42_000_000],
     balanced: [16_000_000, 58_000_000],
     quality: [20_000_000, 80_000_000],
-    'text-30': [10_000_000, 40_000_000]
+    text: [10_000_000, 40_000_000]
   };
   const [minimum, maximum] = limits[profile] || limits['ultra-low'];
   return {
     frameRate,
     bitrate: Math.max(minimum, Math.min(maximum, Math.round(pixelsPerSecond * (factors[profile] || factors['ultra-low'])))),
-    contentHint: profile === 'text-30' ? 'text' : profile === 'quality' ? 'detail' : 'motion',
-    degradationPreference: ['quality', 'text-30'].includes(profile) ? 'maintain-resolution' : 'maintain-framerate'
+    contentHint: profile === 'text' ? 'text' : profile === 'quality' ? 'detail' : 'motion',
+    degradationPreference: ['quality', 'text'].includes(profile) ? 'maintain-resolution' : 'maintain-framerate'
   };
 }
 
@@ -106,7 +107,7 @@ async function tuneSender(sender) {
   try {
     await apply(true);
   } catch {
-    try { await apply(false); } catch { /* Browser keeps its safe defaults. */ }
+    await apply(false);
   }
 }
 
@@ -114,8 +115,7 @@ function updateTargetSummary() {
   const profile = currentProfile();
   if (!profile) return;
   const { width, height } = currentDimensions();
-  const latencyLabel = elements.latencyProfile.selectedOptions[0]?.textContent || '초저지연';
-  elements.targetSummary.textContent = `${profile.model} · ${width} × ${height} · Windows 배율 ${elements.displayScale.value}% · ${latencyLabel} · 최대 ${streamTuning().frameRate}fps${profile.note ? ` · ${profile.note}` : ''}`;
+  elements.targetSummary.textContent = `${profile.model} · ${width} × ${height} · Windows 배율 ${elements.displayScale.value}%${profile.note ? ` · ${profile.note}` : ''}`;
   elements.deleteProfile.hidden = profile.brand !== '사용자';
   localStorage.setItem(SELECTED_PROFILE_KEY, profile.id);
   localStorage.setItem(DISPLAY_SCALE_KEY, elements.displayScale.value);
@@ -127,6 +127,7 @@ async function loadSettings() {
   elements.autoStart.disabled = !saved.autoStartAvailable;
   elements.masterCode.value = saved.masterCode || '';
   elements.latencyProfile.value = saved.latencyProfile || 'ultra-low';
+  elements.frameRate.value = String(saved.frameRate || 60);
   if (!saved.autoStartAvailable) elements.settingsMessage.textContent = '자동 실행은 설치 버전에서 사용할 수 있습니다.';
   updateTargetSummary();
 }
@@ -137,7 +138,8 @@ async function saveSettings({ announce = true } = {}) {
   const saved = await window.hostApi.saveSettings({
     autoStart: elements.autoStart.checked,
     masterCode,
-    latencyProfile: elements.latencyProfile.value
+    latencyProfile: elements.latencyProfile.value,
+    frameRate: Number(elements.frameRate.value)
   });
   if (announce) {
     const codeMessage = saved.masterCode ? '마스터 코드가 즉시 활성화되었습니다.' : '마스터 코드를 사용하지 않습니다.';
@@ -261,6 +263,7 @@ async function applyVirtualDisplay() {
     await new Promise((resolve) => setTimeout(resolve, 1800));
     await refreshVirtualDisplayStatus();
     await loadSources(null, previousIds);
+    if (stream) await ensureCaptureStarted({ force: true });
   } finally {
     elements.applyVirtualDisplay.disabled = false;
     elements.removeVirtualDisplay.disabled = false;
@@ -290,10 +293,24 @@ function selectSource(source, button) {
   void window.hostApi.rememberDisplaySource({ id, name, displayId }).catch(showError);
 }
 
+function updateHostPreview() {
+  const transmitting = [...peers.values()].some((peer) => peer.connectionState === 'connected');
+  if (transmitting) {
+    elements.preview.pause();
+    elements.preview.srcObject = null;
+    elements.streamTitle.textContent = `${selectedSource?.name || '화면'} 전송 중 · PC 미리보기 일시 정지`;
+  } else if (stream) {
+    elements.preview.srcObject = stream;
+    void elements.preview.play().catch(() => {});
+    elements.streamTitle.textContent = `${selectedSource?.name || '화면'} 전송 준비 완료`;
+  }
+}
+
 async function startCapture() {
   if (!selectedSource) return;
   const previousStream = stream;
   const { width, height } = currentDimensions();
+  const tuning = streamTuning();
   const nextStream = await navigator.mediaDevices.getUserMedia({
     audio: false,
     video: {
@@ -302,12 +319,12 @@ async function startCapture() {
         chromeMediaSourceId: selectedSource.id,
         maxWidth: width,
         maxHeight: height,
-        maxFrameRate: streamTuning().frameRate
+        minFrameRate: tuning.frameRate,
+        maxFrameRate: tuning.frameRate
       }
     }
   });
   const nextTrack = nextStream.getVideoTracks()[0];
-  const tuning = streamTuning();
   if ('contentHint' in nextTrack) nextTrack.contentHint = tuning.contentHint;
   for (const peer of peers.values()) {
     const sender = peer.getSenders().find((item) => item.track?.kind === 'video');
@@ -318,14 +335,18 @@ async function startCapture() {
   }
   stream = nextStream;
   for (const track of previousStream?.getTracks() || []) track.stop();
-  elements.preview.srcObject = stream;
-  elements.streamTitle.textContent = `${selectedSource.name} 전송 준비 완료`;
+  updateHostPreview();
   elements.streamDetail.textContent = `${width} × ${height} · 최대 ${tuning.frameRate}fps · iPad 연결 대기 중`;
   elements.start.textContent = '전송 소스 변경';
   if (!polling) void pollHostEvents();
 }
 
 async function ensureCaptureStarted({ force = false } = {}) {
+  // A forced change arriving during capture startup must run after it, not be discarded.
+  while (capturePromise) {
+    await capturePromise;
+    if (!force) return stream;
+  }
   const hasLiveVideo = stream?.getVideoTracks().some((track) => track.readyState === 'live');
   if (!force && hasLiveVideo) return stream;
   if (!selectedSource) await loadSources();
@@ -354,16 +375,26 @@ async function createPeer(sessionId, offer) {
       : `연결 상태: ${peer.connectionState}`;
     if (peer.connectionState === 'connected') {
       const sender = peer.getSenders().find((item) => item.track?.kind === 'video');
-      void tuneSender(sender);
+      void tuneSender(sender).catch(showError);
     }
     if (['closed', 'failed', 'disconnected'].includes(peer.connectionState)) peers.delete(sessionId);
+    updateHostPreview();
   });
   peer.addEventListener('datachannel', ({ channel }) => {
-    channel.addEventListener('message', ({ data }) => {
+    channel.addEventListener('message', async ({ data }) => {
       try {
         const message = JSON.parse(data);
         if (message.type === 'telemetry') {
-          elements.streamDetail.textContent = `iPad 연결됨 · ${message.fps || 0}fps · RTT ${message.rttMs ?? '-'}ms · 버퍼 ${message.jitterMs ?? '-'}ms · 디코드 ${message.decodeMs ?? '-'}ms · ${message.codec || 'H.264'} · ${formatDecoderStats(message)}`;
+          const report = await peer.getStats();
+          if (peer.connectionState !== 'connected') return;
+          const values = [...report.values()];
+          const outbound = values.find((item) => item.type === 'outbound-rtp' && item.kind === 'video');
+          const source = report.get(outbound?.mediaSourceId) || values.find((item) => item.type === 'media-source' && item.kind === 'video');
+          const sender = peer.getSenders().find((item) => item.track?.kind === 'video');
+          const limit = sender?.getParameters().encodings?.[0]?.maxFramerate;
+          const trackRate = sender?.track?.getSettings().frameRate;
+          const reason = { none: '없음', cpu: 'PC 처리량', bandwidth: '대역폭', other: '기타' }[outbound?.qualityLimitationReason] || '미지원';
+          elements.streamDetail.textContent = `설정 ${streamTuning().frameRate}fps · 캡처 설정 ${trackRate ?? '-'}fps · 캡처 실제 ${source?.framesPerSecond ?? '-'}fps · 송신 상한 ${limit ?? '-'}fps · 송신 실제 ${outbound?.framesPerSecond ?? '-'}fps · 제한 사유 ${reason} · 수신 ${message.fps ?? '-'}fps · RTT ${message.rttMs ?? '-'}ms · 버퍼 ${message.jitterMs ?? '-'}ms · 디코드 ${message.decodeMs ?? '-'}ms · ${message.codec || 'H.264'} · ${formatDecoderStats(message)} · ${formatPlaybackStats(message)}`;
         }
       } catch {
         // Touch input messages are handled by the native input milestone.
@@ -404,6 +435,7 @@ async function pollHostEvents() {
         if (event.type === 'close') {
           peers.get(sessionId)?.close();
           peers.delete(sessionId);
+          updateHostPreview();
         }
         hostEventSequence = Math.max(hostEventSequence, event.id);
       }
@@ -427,11 +459,13 @@ elements.orientation.addEventListener('change', () => {
   if (stream) void ensureCaptureStarted({ force: true }).catch(showError);
 });
 elements.displayScale.addEventListener('change', updateTargetSummary);
-elements.latencyProfile.addEventListener('change', () => {
+function changeStreamSettings() {
   updateTargetSummary();
   if (stream) void ensureCaptureStarted({ force: true }).catch(showError);
   void saveSettings({ announce: false }).catch(showError);
-});
+}
+elements.latencyProfile.addEventListener('change', changeStreamSettings);
+elements.frameRate.addEventListener('change', changeStreamSettings);
 elements.settingsForm.addEventListener('submit', (event) => {
   event.preventDefault();
   void saveSettings().catch(showError);

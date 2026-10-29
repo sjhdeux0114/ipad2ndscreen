@@ -42,4 +42,9 @@ jobs:
         run: |
           $installer = Get-ChildItem -Path dist -Filter 'iPad-Display-Server-Setup-*.exe' | Select-Object -First 1
           if (-not $installer) { throw 'Windows installer was not generated.' }
-          gh release create $env:GITHUB_REF_NAME $installer.FullName --verify-tag --generate-notes --title "iPad Display Server $env:GITHUB_REF_NAME"
+          $notesPath = "docs/releases/$env:GITHUB_REF_NAME.md"
+          if (Test-Path -LiteralPath $notesPath) {
+            gh release create $env:GITHUB_REF_NAME $installer.FullName --verify-tag --notes-file $notesPath --title "iPad Display Server $env:GITHUB_REF_NAME"
+          } else {
+            gh release create $env:GITHUB_REF_NAME $installer.FullName --verify-tag --generate-notes --title "iPad Display Server $env:GITHUB_REF_NAME"
+          }
