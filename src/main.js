@@ -11,6 +11,7 @@ const { createDisplayServer } = require('./server');
 const { DEFAULT_SETTINGS, createSettingsStore } = require('./settings-store');
 const { createTrustedDeviceStore } = require('./trusted-device-store');
 const { parseVirtualDisplayResult } = require('./virtual-display-result');
+const { findPreferredDisplaySource, normalizeDisplaySource } = require('./display-source-preference');
 
 const execFileAsync = promisify(execFile);
 
@@ -25,6 +26,7 @@ let trustedDeviceStore;
 let settings = { ...DEFAULT_SETTINGS };
 let isQuitting = false;
 let trayHintShown = false;
+const TRAY_ICON_PNG = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAZUlEQVR4nGNgwALya/7/pwXGZhfNLSXKMfS2HMMRI9sBA2U53BGjDsAnSS0w9B0gJmtOFh51wKgDRh0w6gCqOYBSMHQdQA9MtgNI8eWoA6jmAGokusHngAFvlo86YFB0Tgeyew4AvRsJoiIJLq8AAAAASUVORK5CYII=';
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
@@ -37,8 +39,9 @@ function showMainWindow() {
 }
 
 function createTrayIcon() {
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#6f7cff"/><rect x="7" y="8" width="18" height="13" rx="2" fill="white"/><path d="M12 25h8M16 21v4" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>';
-  return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`).resize({ width: 20, height: 20 });
+  const icon = nativeImage.createFromBuffer(Buffer.from(TRAY_ICON_PNG, 'base64'));
+  if (icon.isEmpty()) throw new Error('트레이 아이콘을 불러오지 못했습니다.');
+  return icon.resize({ width: 20, height: 20, quality: 'best' });
 }
 
 function createTray() {
@@ -193,7 +196,14 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('get-display-sources', async () => {
     const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 320, height: 180 } });
-    return sources.map((source) => ({ id: source.id, name: source.name, thumbnail: source.thumbnail.toDataURL() }));
+    const serialized = sources.map((source) => ({
+      id: source.id,
+      name: source.name,
+      displayId: String(source.display_id || ''),
+      thumbnail: source.thumbnail.toDataURL()
+    }));
+    const preferred = findPreferredDisplaySource(serialized, settings.lastDisplaySource);
+    return serialized.map((source) => ({ ...source, preferred: source.id === preferred?.id }));
   });
   ipcMain.handle('get-host-info', () => ({
     pin: PIN,
@@ -204,9 +214,13 @@ app.whenReady().then(async () => {
   ipcMain.handle('get-settings', () => ({ ...settings, masterCodeConfigured: Boolean(settings.masterCode), autoStartAvailable: app.isPackaged }));
   ipcMain.handle('generate-master-code', () => String(crypto.randomInt(100000, 1000000)));
   ipcMain.handle('save-settings', async (_event, value) => {
-    settings = await settingsStore.save(value);
+    settings = await settingsStore.save({ ...settings, ...value });
     const autoStartApplied = applyAutoStart(settings.autoStart);
     return { ...settings, autoStartApplied, autoStartAvailable: app.isPackaged };
+  });
+  ipcMain.handle('remember-display-source', async (_event, source) => {
+    settings = await settingsStore.save({ ...settings, lastDisplaySource: normalizeDisplaySource(source) });
+    return settings.lastDisplaySource;
   });
   ipcMain.handle('copy-text', (_event, text) => clipboard.writeText(String(text)));
   ipcMain.handle('virtual-display-status', () => virtualDisplayStatus());

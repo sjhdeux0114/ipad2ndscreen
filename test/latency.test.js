@@ -21,7 +21,11 @@ test('ultra-low-latency mode tunes both sender and Safari receiver', () => {
 
 test('main process keeps the app in the tray and supports login startup', () => {
   const main = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
+  const trayIcon = main.match(/const TRAY_ICON_PNG = '([^']+)'/)?.[1];
   assert.match(main, /new Tray/);
+  assert.match(main, /nativeImage\.createFromBuffer\(Buffer\.from\(TRAY_ICON_PNG, 'base64'\)\)/);
+  assert.doesNotMatch(main, /data:image\/svg\+xml/);
+  assert.equal(Buffer.from(trayIcon || '', 'base64').subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
   assert.match(main, /event\.preventDefault\(\);\s*mainWindow\.hide\(\)/);
   assert.match(main, /setLoginItemSettings/);
 });

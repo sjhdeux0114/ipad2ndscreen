@@ -2,11 +2,13 @@
 
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { normalizeDisplaySource } = require('./display-source-preference');
 
 const DEFAULT_SETTINGS = Object.freeze({
   autoStart: false,
   masterCode: '',
-  latencyProfile: 'ultra-low'
+  latencyProfile: 'ultra-low',
+  lastDisplaySource: null
 });
 
 function normalizeSettings(value = {}) {
@@ -18,7 +20,8 @@ function normalizeSettings(value = {}) {
   return {
     autoStart: Boolean(value.autoStart),
     masterCode,
-    latencyProfile
+    latencyProfile,
+    lastDisplaySource: normalizeDisplaySource(value.lastDisplaySource)
   };
 }
 

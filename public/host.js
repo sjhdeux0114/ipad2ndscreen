@@ -9,6 +9,7 @@ let selectedSource = null;
 let stream = null;
 let hostEventSequence = 0;
 let polling = false;
+let capturePromise = null;
 let builtInProfiles = [];
 let customProfiles = [];
 const CUSTOM_PROFILES_KEY = 'ipad-display.custom-profiles.v1';
@@ -209,8 +210,9 @@ async function loadSources(preferredId = selectedSource?.id, previousIds = null)
   const sources = await window.hostApi.getDisplaySources();
   const preferred = sources.find((source) => source.id === preferredId)
     || (previousIds ? sources.find((source) => !previousIds.has(source.id)) : null)
+    || sources.find((source) => source.preferred)
     || sources[0];
-  elements.sources.replaceChildren(...sources.map((source) => {
+  const buttons = sources.map((source) => {
     const button = document.createElement('button');
     button.className = 'source-card';
     button.dataset.sourceId = source.id;
@@ -221,9 +223,11 @@ async function loadSources(preferredId = selectedSource?.id, previousIds = null)
     name.textContent = source.name;
     button.append(image, name);
     button.addEventListener('click', () => selectSource(source, button));
-    if (source.id === preferred?.id) queueMicrotask(() => selectSource(source, button));
     return button;
-  }));
+  });
+  elements.sources.replaceChildren(...buttons);
+  const preferredIndex = sources.findIndex((source) => source.id === preferred?.id);
+  if (preferredIndex >= 0) selectSource(sources[preferredIndex], buttons[preferredIndex]);
   return sources;
 }
 
@@ -278,6 +282,8 @@ function selectSource(source, button) {
   selectedSource = source;
   document.querySelectorAll('.source-card').forEach((card) => card.classList.toggle('selected', card === button));
   elements.start.disabled = false;
+  const { id, name, displayId } = source;
+  void window.hostApi.rememberDisplaySource({ id, name, displayId }).catch(showError);
 }
 
 async function startCapture() {
@@ -315,8 +321,20 @@ async function startCapture() {
   if (!polling) void pollHostEvents();
 }
 
+async function ensureCaptureStarted({ force = false } = {}) {
+  const hasLiveVideo = stream?.getVideoTracks().some((track) => track.readyState === 'live');
+  if (!force && hasLiveVideo) return stream;
+  if (!selectedSource) await loadSources();
+  if (!selectedSource) throw new Error('전송할 디스플레이를 찾지 못했습니다.');
+  if (!capturePromise) {
+    capturePromise = startCapture().finally(() => { capturePromise = null; });
+  }
+  await capturePromise;
+  return stream;
+}
+
 async function createPeer(sessionId, offer) {
-  if (!stream) return;
+  await ensureCaptureStarted();
   peers.get(sessionId)?.close();
   const peer = new RTCPeerConnection({ iceServers: [], bundlePolicy: 'max-bundle', rtcpMuxPolicy: 'require' });
   peers.set(sessionId, peer);
@@ -372,7 +390,6 @@ async function pollHostEvents() {
     try {
       const { events } = await api(`/api/host/events?since=${hostEventSequence}`, pin);
       for (const event of events) {
-        hostEventSequence = Math.max(hostEventSequence, event.id);
         const { sessionId } = event.payload;
         if (event.type === 'offer') await createPeer(sessionId, event.payload.offer);
         if (event.type === 'receiver-candidate') {
@@ -384,6 +401,7 @@ async function pollHostEvents() {
           peers.get(sessionId)?.close();
           peers.delete(sessionId);
         }
+        hostEventSequence = Math.max(hostEventSequence, event.id);
       }
     } catch (error) {
       showError(error);
@@ -392,17 +410,17 @@ async function pollHostEvents() {
   }
 }
 
-elements.start.addEventListener('click', () => startCapture().catch(showError));
+elements.start.addEventListener('click', () => ensureCaptureStarted({ force: true }).catch(showError));
 elements.refresh.addEventListener('click', () => loadSources().catch(showError));
 elements.applyVirtualDisplay.addEventListener('click', () => applyVirtualDisplay().catch(showError));
 elements.removeVirtualDisplay.addEventListener('click', () => removeVirtualDisplay().catch(showError));
 elements.targetProfile.addEventListener('change', () => {
   updateTargetSummary();
-  if (stream) void startCapture().catch(showError);
+  if (stream) void ensureCaptureStarted({ force: true }).catch(showError);
 });
 elements.orientation.addEventListener('change', () => {
   updateTargetSummary();
-  if (stream) void startCapture().catch(showError);
+  if (stream) void ensureCaptureStarted({ force: true }).catch(showError);
 });
 elements.displayScale.addEventListener('change', updateTargetSummary);
 elements.latencyProfile.addEventListener('change', () => {
@@ -449,7 +467,7 @@ elements.customProfileForm.addEventListener('submit', (event) => {
   renderProfiles(profile.id);
   elements.customProfileForm.hidden = true;
   elements.error.textContent = '';
-  if (stream) void startCapture().catch(showError);
+  if (stream) void ensureCaptureStarted({ force: true }).catch(showError);
 });
 elements.deleteProfile.addEventListener('click', () => {
   const profile = currentProfile();
@@ -457,8 +475,11 @@ elements.deleteProfile.addEventListener('click', () => {
   customProfiles = customProfiles.filter((item) => item.id !== profile.id);
   saveCustomProfiles();
   renderProfiles('balanced-1920x1200');
-  if (stream) void startCapture().catch(showError);
+  if (stream) void ensureCaptureStarted({ force: true }).catch(showError);
 });
 
 elements.displayScale.value = localStorage.getItem(DISPLAY_SCALE_KEY) || '150';
-Promise.all([loadHostInfo(), loadSources(), loadProfiles(), loadSettings(), refreshVirtualDisplayStatus()]).catch(showError);
+Promise.all([loadHostInfo(), loadProfiles(), loadSettings(), refreshVirtualDisplayStatus()])
+  .then(() => loadSources())
+  .then(() => { if (!polling) void pollHostEvents(); })
+  .catch(showError);

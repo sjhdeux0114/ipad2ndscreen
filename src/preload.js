@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('hostApi', {
   getDisplaySources: () => ipcRenderer.invoke('get-display-sources'),
+  rememberDisplaySource: (source) => ipcRenderer.invoke('remember-display-source', source),
   getHostInfo: () => ipcRenderer.invoke('get-host-info'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
