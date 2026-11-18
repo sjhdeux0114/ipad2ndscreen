@@ -12,6 +12,7 @@ let polling = false;
 let capturePromise = null;
 let builtInProfiles = [];
 let customProfiles = [];
+let bitrateLimits = { download: 5 };
 const CUSTOM_PROFILES_KEY = 'ipad-display.custom-profiles.v1';
 const SELECTED_PROFILE_KEY = 'ipad-display.selected-profile.v1';
 const DISPLAY_SCALE_KEY = 'ipad-display.scale.v1';
@@ -25,6 +26,7 @@ const elements = {
   orientation: document.querySelector('#orientation'),
   displayScale: document.querySelector('#display-scale'),
   latencyProfile: document.querySelector('#latency-profile'),
+  bitrateLimit: document.querySelector('#bitrate-limit'),
   frameRate: document.querySelector('#frame-rate'),
   targetSummary: document.querySelector('#target-summary'),
   customProfileToggle: document.querySelector('#custom-profile-toggle'),
@@ -85,14 +87,25 @@ function streamTuning() {
   const [minimum, maximum] = limits[profile] || limits['ultra-low'];
   return {
     frameRate,
-    bitrate: Math.max(minimum, Math.min(maximum, Math.round(pixelsPerSecond * (factors[profile] || factors['ultra-low'])))),
+    bitrate: elements.bitrateLimit.value !== 'auto'
+      ? Number(elements.bitrateLimit.value) * 1_000_000
+      : Math.max(minimum, Math.min(maximum, Math.round(pixelsPerSecond * (factors[profile] || factors['ultra-low'])))),
     contentHint: profile === 'text' ? 'text' : profile === 'quality' ? 'detail' : 'motion',
     degradationPreference: ['quality', 'text'].includes(profile) ? 'maintain-resolution' : 'maintain-framerate'
   };
 }
 
+const pendingSenderUpdates = new WeakMap();
+
 async function tuneSender(sender) {
   if (!sender) return;
+  const previous = pendingSenderUpdates.get(sender) || Promise.resolve();
+  const update = previous.then(() => applySenderTuning(sender));
+  pendingSenderUpdates.set(sender, update.catch(() => {}));
+  await update;
+}
+
+async function applySenderTuning(sender) {
   const tuning = streamTuning();
   if (sender.track && 'contentHint' in sender.track) sender.track.contentHint = tuning.contentHint;
   const apply = async (includePriority) => {
@@ -127,6 +140,8 @@ async function loadSettings() {
   elements.autoStart.disabled = !saved.autoStartAvailable;
   elements.masterCode.value = saved.masterCode || '';
   elements.latencyProfile.value = saved.latencyProfile || 'ultra-low';
+  bitrateLimits = { ...saved.bitrateLimits, download: saved.downloadBitrateMbps ?? 5 };
+  showBitrateLimit();
   elements.frameRate.value = String(saved.frameRate || 60);
   if (!saved.autoStartAvailable) elements.settingsMessage.textContent = '자동 실행은 설치 버전에서 사용할 수 있습니다.';
   updateTargetSummary();
@@ -139,6 +154,8 @@ async function saveSettings({ announce = true } = {}) {
     autoStart: elements.autoStart.checked,
     masterCode,
     latencyProfile: elements.latencyProfile.value,
+    downloadBitrateMbps: bitrateLimits.download,
+    bitrateLimits,
     frameRate: Number(elements.frameRate.value)
   });
   if (announce) {
@@ -380,6 +397,7 @@ async function createPeer(sessionId, offer) {
     if (['closed', 'failed', 'disconnected'].includes(peer.connectionState)) peers.delete(sessionId);
     updateHostPreview();
   });
+  let previousOutbound;
   peer.addEventListener('datachannel', ({ channel }) => {
     channel.addEventListener('message', async ({ data }) => {
       try {
@@ -391,10 +409,15 @@ async function createPeer(sessionId, offer) {
           const outbound = values.find((item) => item.type === 'outbound-rtp' && item.kind === 'video');
           const source = report.get(outbound?.mediaSourceId) || values.find((item) => item.type === 'media-source' && item.kind === 'video');
           const sender = peer.getSenders().find((item) => item.track?.kind === 'video');
-          const limit = sender?.getParameters().encodings?.[0]?.maxFramerate;
+          const encoding = sender?.getParameters().encodings?.[0];
+          const limit = encoding?.maxFramerate;
+          const bitrate = window.iPadDisplay.formatSenderBitrate(previousOutbound, outbound, encoding?.maxBitrate);
+          previousOutbound = outbound;
           const trackRate = sender?.track?.getSettings().frameRate;
           const reason = { none: '없음', cpu: 'PC 처리량', bandwidth: '대역폭', other: '기타' }[outbound?.qualityLimitationReason] || '미지원';
           elements.streamDetail.textContent = `설정 ${streamTuning().frameRate}fps · 캡처 설정 ${trackRate ?? '-'}fps · 캡처 실제 ${source?.framesPerSecond ?? '-'}fps · 송신 상한 ${limit ?? '-'}fps · 송신 실제 ${outbound?.framesPerSecond ?? '-'}fps · 제한 사유 ${reason} · 수신 ${message.fps ?? '-'}fps · RTT ${message.rttMs ?? '-'}ms · 버퍼 ${message.jitterMs ?? '-'}ms · 디코드 ${message.decodeMs ?? '-'}ms · ${message.codec || 'H.264'} · ${formatDecoderStats(message)} · ${formatPlaybackStats(message)}`;
+          elements.streamDetail.textContent = bitrate + ' · ' + elements.streamDetail.textContent;
+          if (channel.readyState === 'open') channel.send(JSON.stringify({ type: 'sender-bitrate', bitrate }));
         }
       } catch {
         // Touch input messages are handled by the native input milestone.
@@ -464,7 +487,28 @@ function changeStreamSettings() {
   if (stream) void ensureCaptureStarted({ force: true }).catch(showError);
   void saveSettings({ announce: false }).catch(showError);
 }
-elements.latencyProfile.addEventListener('change', changeStreamSettings);
+function showBitrateLimit() {
+  const mode = elements.latencyProfile.value;
+  elements.bitrateLimit.options[0].disabled = mode === 'download';
+  elements.bitrateLimit.value = String(bitrateLimits[mode] ?? 'auto');
+}
+for (let mbps = 5; mbps <= 30; mbps++) {
+  elements.bitrateLimit.add(new Option(`${mbps} Mbps`, String(mbps)));
+}
+elements.latencyProfile.addEventListener('change', () => {
+  showBitrateLimit();
+  changeStreamSettings();
+});
+elements.bitrateLimit.addEventListener('change', () => {
+  const mode = elements.latencyProfile.value;
+  if (elements.bitrateLimit.value === 'auto') delete bitrateLimits[mode];
+  else bitrateLimits[mode] = Number(elements.bitrateLimit.value);
+  for (const peer of peers.values()) {
+    const sender = peer.getSenders().find((item) => item.track?.kind === 'video');
+    void tuneSender(sender).catch(showError);
+  }
+  void saveSettings({ announce: false }).catch(showError);
+});
 elements.frameRate.addEventListener('change', changeStreamSettings);
 elements.settingsForm.addEventListener('submit', (event) => {
   event.preventDefault();

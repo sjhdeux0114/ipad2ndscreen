@@ -10,7 +10,7 @@ const root = path.join(__dirname, '..');
 test('text mode preserves dimensions and applies 30fps and text preferences to sender', async () => {
   const source = fs.readFileSync(path.join(root, 'public/host.js'), 'utf8');
   const dimensions = { width: 1920, height: 1200 };
-  const context = { currentDimensions: () => dimensions, elements: { latencyProfile: { value: 'text' }, frameRate: { value: '30' } } };
+  const context = { currentDimensions: () => dimensions, elements: { bitrateLimit: { value: 'auto' }, latencyProfile: { value: 'text' }, frameRate: { value: '30' } } };
   vm.createContext(context);
   vm.runInContext(source.slice(source.indexOf('function streamTuning()'), source.indexOf('function updateTargetSummary()')), context);
   const tuning = context.streamTuning();
@@ -32,6 +32,15 @@ test('text mode preserves dimensions and applies 30fps and text preferences to s
   await context.tuneSender(sender);
   assert.equal(applied.encodings[0].maxFramerate, 60);
   assert.equal(sender.track.contentHint, 'motion');
+  for (const profile of ['download', 'text', 'quality', 'balanced', 'ultra-low']) {
+    context.elements.latencyProfile.value = profile;
+    for (const mbps of [5, 17, 30]) {
+      context.elements.bitrateLimit.value = String(mbps);
+      await context.tuneSender(sender);
+      assert.equal(applied.encodings[0].maxBitrate, mbps * 1_000_000);
+      assert.equal(applied.encodings[0].maxFramerate, 60);
+    }
+  }
   assert.equal(normalizeSettings({ latencyProfile: 'text-30' }).latencyProfile, 'text');
 });
 
@@ -73,7 +82,7 @@ test('forced capture changes are not lost while an earlier capture is pending', 
 
 test('sender tuning reports failure instead of silently retaining an old frame cap', async () => {
   const source = fs.readFileSync(path.join(root, 'public/host.js'), 'utf8');
-  const context = { currentDimensions: () => ({ width: 1920, height: 1200 }), elements: { latencyProfile: { value: 'text' }, frameRate: { value: '60' } } };
+  const context = { currentDimensions: () => ({ width: 1920, height: 1200 }), elements: { bitrateLimit: { value: 'auto' }, latencyProfile: { value: 'text' }, frameRate: { value: '60' } } };
   vm.createContext(context);
   vm.runInContext(source.slice(source.indexOf('function streamTuning()'), source.indexOf('function updateTargetSummary()')), context);
   await assert.rejects(context.tuneSender({ track: {}, getParameters: () => ({ encodings: [{}] }), setParameters: async () => { throw new Error('rejected'); } }), /rejected/);

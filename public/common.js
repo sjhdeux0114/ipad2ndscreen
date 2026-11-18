@@ -13,6 +13,17 @@ window.iPadDisplay = {
     const interval = stats.frameIntervalSupported === false ? '미지원' : stats.frameIntervalMeanMs == null ? '측정 대기' : `평균 ${stats.frameIntervalMeanMs.toFixed(1)} / 최대 ${stats.frameIntervalMaxMs.toFixed(1)}ms`;
     return `수신 ${resolution} · 화면 멈춤(누적) ${freezes} / ${duration} · 출력 간격(최근) ${interval}`;
   },
+  formatSenderBitrate(previous, current, capBps) {
+    let actual = '측정 대기';
+    if (previous && current && previous.id === current.id && current.timestamp > previous.timestamp
+        && Number.isFinite(current.bytesSent) && Number.isFinite(previous.bytesSent)
+        && current.bytesSent >= previous.bytesSent) {
+      const mbps = (current.bytesSent - previous.bytesSent) * 8 / ((current.timestamp - previous.timestamp) * 1000);
+      actual = `${mbps.toFixed(2)} Mbps`;
+    }
+    const cap = Number.isFinite(capBps) ? `${Number((capBps / 1_000_000).toFixed(2))} Mbps` : '미지원';
+    return `영상 송신 ${actual} / 상한 ${cap}`;
+  },
   async api(path, credentials, options = {}) {
     const normalized = typeof credentials === 'string' ? { pin: credentials } : (credentials || {});
     const headers = { ...(options.headers || {}) };

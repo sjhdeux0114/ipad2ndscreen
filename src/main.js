@@ -24,6 +24,16 @@ let tray;
 let settingsStore;
 let trustedDeviceStore;
 let settings = { ...DEFAULT_SETTINGS };
+let pendingSettingsWrite = Promise.resolve();
+
+function updateSettings(changes) {
+  const write = pendingSettingsWrite.then(async () => {
+    settings = await settingsStore.save({ ...settings, ...changes });
+    return settings;
+  });
+  pendingSettingsWrite = write.catch(() => {});
+  return write;
+}
 let isQuitting = false;
 let trayHintShown = false;
 const TRAY_ICON_PNG = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAZUlEQVR4nGNgwALya/7/pwXGZhfNLSXKMfS2HMMRI9sBA2U53BGjDsAnSS0w9B0gJmtOFh51wKgDRh0w6gCqOYBSMHQdQA9MtgNI8eWoA6jmAGokusHngAFvlo86YFB0Tgeyew4AvRsJoiIJLq8AAAAASUVORK5CYII=';
@@ -214,12 +224,12 @@ app.whenReady().then(async () => {
   ipcMain.handle('get-settings', () => ({ ...settings, masterCodeConfigured: Boolean(settings.masterCode), autoStartAvailable: app.isPackaged }));
   ipcMain.handle('generate-master-code', () => String(crypto.randomInt(100000, 1000000)));
   ipcMain.handle('save-settings', async (_event, value) => {
-    settings = await settingsStore.save({ ...settings, ...value });
+    await updateSettings(value);
     const autoStartApplied = applyAutoStart(settings.autoStart);
     return { ...settings, autoStartApplied, autoStartAvailable: app.isPackaged };
   });
   ipcMain.handle('remember-display-source', async (_event, source) => {
-    settings = await settingsStore.save({ ...settings, lastDisplaySource: normalizeDisplaySource(source) });
+    await updateSettings({ lastDisplaySource: normalizeDisplaySource(source) });
     return settings.lastDisplaySource;
   });
   ipcMain.handle('copy-text', (_event, text) => clipboard.writeText(String(text)));

@@ -12,6 +12,8 @@ test('settings validate six digit master codes and latency profiles', () => {
     autoStart: true,
     masterCode: '123456',
     latencyProfile: 'balanced',
+    downloadBitrateMbps: 5,
+    bitrateLimits: {},
     frameRate: 60,
     lastDisplaySource: null
   });
@@ -26,14 +28,18 @@ test('settings persist across restarts', async (context) => {
   await store.save({
     autoStart: true,
     masterCode: '654321',
-    latencyProfile: 'ultra-low',
+    latencyProfile: 'download',
+    downloadBitrateMbps: 17,
+    bitrateLimits: { balanced: 22 },
     frameRate: 30,
     lastDisplaySource: { id: 'screen:2:0', name: 'Screen 3', displayId: '123' }
   });
   assert.deepEqual(await store.load(), {
     autoStart: true,
     masterCode: '654321',
-    latencyProfile: 'ultra-low',
+    latencyProfile: 'download',
+    downloadBitrateMbps: 17,
+    bitrateLimits: { balanced: 22 },
     frameRate: 30,
     lastDisplaySource: { id: 'screen:2:0', name: 'Screen 3', displayId: '123' }
   });

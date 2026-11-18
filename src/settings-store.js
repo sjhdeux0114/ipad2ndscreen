@@ -8,6 +8,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   autoStart: false,
   masterCode: '',
   latencyProfile: 'ultra-low',
+  downloadBitrateMbps: 5,
+  bitrateLimits: {},
   frameRate: 60,
   lastDisplaySource: null
 });
@@ -16,13 +18,20 @@ function normalizeSettings(value = {}) {
   const masterCode = typeof value.masterCode === 'string' ? value.masterCode.trim() : '';
   if (masterCode && !/^\d{6}$/.test(masterCode)) throw new Error('마스터 코드는 숫자 6자리여야 합니다.');
   const profile = value.latencyProfile === 'text-30' ? 'text' : value.latencyProfile;
-  const latencyProfile = ['ultra-low', 'balanced', 'quality', 'text'].includes(profile)
+  const latencyProfile = ['ultra-low', 'balanced', 'quality', 'text', 'download'].includes(profile)
     ? profile
     : DEFAULT_SETTINGS.latencyProfile;
   return {
     autoStart: Boolean(value.autoStart),
     masterCode,
     latencyProfile,
+    bitrateLimits: Object.fromEntries(['ultra-low', 'balanced', 'quality', 'text'].flatMap((mode) => {
+      const limit = value.bitrateLimits?.[mode];
+      return Number.isInteger(limit) && limit >= 5 && limit <= 30 ? [[mode, limit]] : [];
+    })),
+    downloadBitrateMbps: Number.isInteger(value.downloadBitrateMbps)
+      ? Math.min(30, Math.max(5, value.downloadBitrateMbps))
+      : DEFAULT_SETTINGS.downloadBitrateMbps,
     frameRate: [30, 60].includes(Number(value.frameRate)) ? Number(value.frameRate) : value.latencyProfile === 'text-30' ? 30 : 60,
     lastDisplaySource: normalizeDisplaySource(value.lastDisplaySource)
   };

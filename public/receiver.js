@@ -16,10 +16,12 @@ const latencyStats = document.querySelector('#latency-stats');
 const toggleStats = document.querySelector('#toggle-stats');
 let statsVisible = true;
 let latestTelemetryText = '';
+let senderBitrateText = '';
 try { statsVisible = localStorage.getItem('ipadDisplayStatsVisible') !== 'false'; } catch { /* Storage may be unavailable. */ }
 
 function updateStatsVisibility() {
-  if (statsVisible && latencyStats.textContent !== latestTelemetryText) latencyStats.textContent = latestTelemetryText;
+  const text = senderBitrateText ? senderBitrateText + '\n' + latestTelemetryText : latestTelemetryText;
+  if (statsVisible && latencyStats.textContent !== text) latencyStats.textContent = text;
   latencyStats.hidden = !statsVisible || !latestTelemetryText;
   toggleStats.textContent = statsVisible ? '통계 끄기' : '통계 켜기';
   toggleStats.setAttribute('aria-pressed', String(statsVisible));
@@ -139,6 +141,15 @@ async function connect() {
   const transceiver = peer.addTransceiver('video', { direction: 'recvonly' });
   preferH264(transceiver);
   inputChannel = peer.createDataChannel('input', { ordered: false, maxRetransmits: 0 });
+  senderBitrateText = '';
+  inputChannel.addEventListener('message', (event) => {
+    if (event.target !== inputChannel) return;
+    const message = JSON.parse(event.data);
+    if (message.type === 'sender-bitrate' && typeof message.bitrate === 'string') {
+      senderBitrateText = message.bitrate;
+      updateStatsVisibility();
+    }
+  });
 
   peer.addEventListener('track', (event) => {
     try { event.receiver.jitterBufferTarget = 0; } catch { /* Older Safari chooses its minimum. */ }

@@ -103,12 +103,16 @@
         <label>전송 품질
           <select id="latency-profile">
             <option value="ultra-low" selected>초저지연 · 게임 우선</option>
+            <option value="download">다운로드 병행</option>
             <option value="balanced">균형</option>
             <option value="quality">화질 우선</option>
             <option value="text">글씨 우선 · 해상도 유지</option>
           </select>
         </label>
         <label>전송 프레임 <select id="frame-rate"><option value="30">30fps</option><option value="60" selected>60fps</option></select></label>
+        <label>영상 비트레이트 상한
+          <select id="bitrate-limit"><option value="auto">모드 기본값</option></select>
+        </label>
       </div>
       <div class="quality-row">
         <p>해상도는 위의 가상 확장 디스플레이에서 설정합니다. 여기서는 전송 품질과 프레임을 선택하세요.</p>

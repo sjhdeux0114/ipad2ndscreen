@@ -7,6 +7,19 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 
+test('sender bitrate uses elapsed report time and handles idle or replaced streams', () => {
+  const context = { window: {} };
+  require('node:vm').runInNewContext(fs.readFileSync(path.join(root, 'public/common.js'), 'utf8'), context);
+  const format = context.window.iPadDisplay.formatSenderBitrate;
+  const first = { id: 'video', timestamp: 100, bytesSent: 800 };
+  const next = { id: 'video', timestamp: 2100, bytesSent: 2_500_800 };
+  assert.equal(format(first, next, 17_000_000), '영상 송신 10.00 Mbps / 상한 17 Mbps');
+  assert.match(format(first, { ...next, bytesSent: 800 }, 5_000_000), /0\.00 Mbps/);
+  for (const previous of [undefined, next, { ...first, id: 'old' }, { ...first, bytesSent: 3_000_000 }]) {
+    assert.match(format(previous, next, 17_000_000), /측정 대기/);
+  }
+});
+
 test('ultra-low-latency mode tunes both sender and Safari receiver', () => {
   const host = fs.readFileSync(path.join(root, 'public', 'host.js'), 'utf8');
   const receiver = fs.readFileSync(path.join(root, 'public', 'receiver.js'), 'utf8');
