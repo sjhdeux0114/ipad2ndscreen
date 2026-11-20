@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('hostApi', {
   getDisplaySources: () => ipcRenderer.invoke('get-display-sources'),
   rememberDisplaySource: (source) => ipcRenderer.invoke('remember-display-source', source),
   getHostInfo: () => ipcRenderer.invoke('get-host-info'),
+  changeServerPort: (port) => ipcRenderer.invoke('change-server-port', port),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   generateMasterCode: () => ipcRenderer.invoke('generate-master-code'),

@@ -5,6 +5,18 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { createDisplayServer } = require('../src/server');
 
+test('a busy preferred port falls back to an available listening port', async (context) => {
+  const options = { staticRoot: path.join(__dirname, '..', 'public'), host: '127.0.0.1', port: 0 };
+  const first = createDisplayServer(options);
+  const occupied = await first.start();
+  context.after(() => first.stop());
+  const second = createDisplayServer({ ...options, port: occupied.port });
+  const address = await second.start([occupied.port, 0]);
+  context.after(() => second.stop());
+  assert.notEqual(address.port, occupied.port);
+  assert.equal((await fetch(`http://127.0.0.1:${address.port}/`)).status, 200);
+});
+
 test('server protects signaling and completes a handshake', async (context) => {
   const trustedTokens = new Set();
   const server = createDisplayServer({

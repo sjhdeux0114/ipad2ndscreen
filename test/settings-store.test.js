@@ -9,6 +9,7 @@ const { createSettingsStore, normalizeSettings } = require('../src/settings-stor
 
 test('settings validate six digit master codes and latency profiles', () => {
   assert.deepEqual(normalizeSettings({ autoStart: 1, masterCode: '123456', latencyProfile: 'balanced' }), {
+    serverPort: 5178,
     autoStart: true,
     masterCode: '123456',
     latencyProfile: 'balanced',
@@ -26,6 +27,7 @@ test('settings persist across restarts', async (context) => {
   context.after(() => fs.rm(directory, { recursive: true, force: true }));
   const store = createSettingsStore(directory);
   await store.save({
+    serverPort: 15178,
     autoStart: true,
     masterCode: '654321',
     latencyProfile: 'download',
@@ -35,6 +37,7 @@ test('settings persist across restarts', async (context) => {
     lastDisplaySource: { id: 'screen:2:0', name: 'Screen 3', displayId: '123' }
   });
   assert.deepEqual(await store.load(), {
+    serverPort: 15178,
     autoStart: true,
     masterCode: '654321',
     latencyProfile: 'download',

@@ -6,7 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
-const { app, BrowserWindow, Menu, Tray, nativeImage, clipboard, desktopCapturer, ipcMain, powerSaveBlocker, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, clipboard, desktopCapturer, ipcMain, net, powerSaveBlocker, shell } = require('electron');
 const { createDisplayServer } = require('./server');
 const { DEFAULT_SETTINGS, createSettingsStore } = require('./settings-store');
 const { createTrustedDeviceStore } = require('./trusted-device-store');
@@ -15,7 +15,7 @@ const { findPreferredDisplaySource, normalizeDisplaySource } = require('./displa
 
 const execFileAsync = promisify(execFile);
 
-const PORT = Number(process.env.IPAD_DISPLAY_PORT) || 5178;
+let serverPort;
 const PIN = String(Math.floor(100000 + Math.random() * 900000));
 let mainWindow;
 let displayServer;
@@ -150,7 +150,7 @@ function localIpv4Addresses() {
   return [...new Set(addresses)];
 }
 
-async function createWindow() {
+function createWindow() {
   Menu.setApplicationMenu(null);
   mainWindow = new BrowserWindow({
     width: 960,
@@ -180,7 +180,68 @@ async function createWindow() {
       });
     }
   });
-  await mainWindow.loadURL(`http://127.0.0.1:${PORT}/host.html?pin=${PIN}`);
+}
+
+function serverForPort(port) {
+  return createDisplayServer({
+    staticRoot: path.join(__dirname, '..', 'public'),
+    pin: PIN,
+    port,
+    isPinAuthorized: (supplied) => supplied === PIN || Boolean(settings.masterCode && supplied === settings.masterCode),
+    isDeviceAuthorized: (token) => trustedDeviceStore.isAuthorized(token),
+    registerDevice: () => trustedDeviceStore.register(),
+    onSessionCountChanged: (count) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('session-count', count);
+    }
+  });
+}
+
+let changingPort = false;
+async function activatePort(port, persist) {
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('포트 번호는 1~65535 사이여야 합니다.');
+  if (changingPort) throw new Error('포트를 변경하는 중입니다.');
+  if (port === serverPort) {
+    if (persist && settings.serverPort !== port) await updateSettings({ serverPort: port });
+    return;
+  }
+  changingPort = true;
+  const candidate = serverForPort(port);
+  const previous = displayServer;
+  const previousPort = serverPort;
+  try {
+    const address = await candidate.start();
+    // Chromium and Safari refuse HTTP navigation on certain well-known ports.
+    const url = `http://127.0.0.1:${address.port}/host.html?pin=${PIN}`;
+    const probe = await net.fetch(url, { method: 'HEAD' });
+    if (!probe.ok) throw new Error('서버의 접속 주소를 열 수 없습니다.');
+    displayServer = candidate;
+    serverPort = address.port;
+    await mainWindow.loadURL(url);
+    if (persist && settings.serverPort !== address.port) await updateSettings({ serverPort: address.port });
+  } catch (error) {
+    const switched = displayServer === candidate;
+    displayServer = previous;
+    serverPort = previousPort;
+    if (switched && persist) {
+      if (previous) await mainWindow.loadURL(`http://127.0.0.1:${previousPort}/host.html?pin=${PIN}`);
+      else await showPortSettings(port, error);
+    }
+    await candidate.stop();
+    if (error.code === 'EADDRINUSE') throw new Error(`${port} 포트를 다른 프로그램이 사용 중입니다.`);
+    if (error.code === 'EACCES') throw new Error(`Windows에서 ${port} 포트 사용을 허용하지 않습니다.`);
+    throw error;
+  } finally {
+    changingPort = false;
+  }
+  await previous?.stop();
+  if (powerBlockerId === undefined) powerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+}
+
+async function showPortSettings(port, error) {
+  await mainWindow.loadFile(path.join(__dirname, '..', 'public', 'port-settings.html'), {
+    query: { port: String(port), error: error.message }
+  });
+  showMainWindow();
 }
 
 app.whenReady().then(async () => {
@@ -190,19 +251,14 @@ app.whenReady().then(async () => {
   await trustedDeviceStore.load();
   settings = await settingsStore.load();
   if (settings.autoStart) applyAutoStart(true);
-  displayServer = createDisplayServer({
-    staticRoot: path.join(__dirname, '..', 'public'),
-    pin: PIN,
-    port: PORT,
-    isPinAuthorized: (supplied) => supplied === PIN || Boolean(settings.masterCode && supplied === settings.masterCode),
-    isDeviceAuthorized: (token) => trustedDeviceStore.isAuthorized(token),
-    registerDevice: () => trustedDeviceStore.register(),
-    onSessionCountChanged: (count) => {
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('session-count', count);
+  ipcMain.handle('change-server-port', async (_event, port) => {
+    try {
+      await activatePort(port, true);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: error.message };
     }
   });
-  await displayServer.start();
-  powerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
 
   ipcMain.handle('get-display-sources', async () => {
     const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 320, height: 180 } });
@@ -217,9 +273,9 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle('get-host-info', () => ({
     pin: PIN,
-    port: PORT,
+    port: serverPort,
     masterCodeConfigured: Boolean(settings.masterCode),
-    addresses: localIpv4Addresses().map((address) => `http://${address}:${PORT}`)
+    addresses: localIpv4Addresses().map((address) => `http://${address}:${serverPort}`)
   }));
   ipcMain.handle('get-settings', () => ({ ...settings, masterCodeConfigured: Boolean(settings.masterCode), autoStartAvailable: app.isPackaged }));
   ipcMain.handle('generate-master-code', () => String(crypto.randomInt(100000, 1000000)));
@@ -239,7 +295,16 @@ app.whenReady().then(async () => {
   ipcMain.handle('virtual-display-remove', () => runVirtualDisplayOperation('remove'));
 
   createTray();
-  await createWindow();
+  createWindow();
+  const port = Number(process.env.IPAD_DISPLAY_PORT) || settings.serverPort;
+  try {
+    await activatePort(port, false);
+  } catch (error) {
+    await showPortSettings(port, error);
+  }
+}).catch((error) => {
+  require('electron').dialog.showErrorBox('iPad Display Server 시작 실패', error.message);
+  app.quit();
 });
 
 app.on('second-instance', showMainWindow);

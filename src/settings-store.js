@@ -5,6 +5,7 @@ const path = require('node:path');
 const { normalizeDisplaySource } = require('./display-source-preference');
 
 const DEFAULT_SETTINGS = Object.freeze({
+  serverPort: 5178,
   autoStart: false,
   masterCode: '',
   latencyProfile: 'ultra-low',
@@ -22,6 +23,8 @@ function normalizeSettings(value = {}) {
     ? profile
     : DEFAULT_SETTINGS.latencyProfile;
   return {
+    serverPort: Number.isInteger(value.serverPort) && value.serverPort > 0 && value.serverPort <= 65535
+      ? value.serverPort : DEFAULT_SETTINGS.serverPort,
     autoStart: Boolean(value.autoStart),
     masterCode,
     latencyProfile,

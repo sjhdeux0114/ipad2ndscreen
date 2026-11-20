@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const http = require('node:http');
+const { once } = require('node:events');
 const path = require('node:path');
 const { SignalingStore } = require('./signaling-store');
 
@@ -183,12 +184,17 @@ function createDisplayServer({
 
   return {
     store,
-    async start() {
-      await new Promise((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(port, host, resolve);
-      });
-      return server.address();
+    async start(fallbackPorts = []) {
+      const candidates = [...new Set([port, ...fallbackPorts])];
+      for (const candidate of candidates) {
+        try {
+          server.listen(candidate, host);
+          await once(server, 'listening');
+          return server.address();
+        } catch (error) {
+          if (!['EADDRINUSE', 'EACCES'].includes(error.code) || candidate === candidates.at(-1)) throw error;
+        }
+      }
     },
     async stop() {
       if (!server.listening) return;

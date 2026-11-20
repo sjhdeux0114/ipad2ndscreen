@@ -45,6 +45,15 @@
         <button class="button primary" type="submit">설정 저장</button>
       </form>
       <p id="settings-message" class="driver-message" aria-live="polite"></p>
+      <div><h2>접속 포트</h2><p>포트를 변경하면 화면 전송이 종료됩니다. iPad에서 새 주소로 접속하세요.</p></div>
+      <form id="port-form" class="settings-form">
+        <label class="master-code-field">서버 포트
+          <input id="server-port" type="number" min="1" max="65535" required>
+        </label>
+        <button class="button primary" type="submit">포트 적용</button>
+        <button id="automatic-port" class="button secondary" type="button">빈 포트 자동 선택</button>
+      </form>
+      <p id="port-message" class="driver-message" role="status"></p>
     </section>
 
     <section class="panel virtual-display-panel">
@@ -133,5 +142,6 @@
   </main>
   <script src="common.js"></script>
   <script src="host.js"></script>
+  <script src="port-settings.js"></script>
 </body>
 </html>

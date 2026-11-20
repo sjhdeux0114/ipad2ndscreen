@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; form-action 'none'; object-src 'none'">
+  <title>iPad Display Server · 포트 설정</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="host-page">
+  <main class="shell">
+    <h1>서버 포트 설정</h1>
+    <section class="panel">
+      <h2>서버를 시작할 수 없습니다</h2>
+      <p id="startup-error"></p>
+      <p>포트를 다시 시도하거나 다른 번호를 선택하세요.</p>
+      <form id="port-form" class="settings-form">
+        <label class="master-code-field">서버 포트
+          <input id="server-port" type="number" min="1" max="65535" required>
+        </label>
+        <button class="button primary" type="submit">포트 적용</button>
+        <button id="automatic-port" class="button secondary" type="button">빈 포트 자동 선택</button>
+      </form>
+      <p id="port-message" class="driver-message" role="status"></p>
+    </section>
+  </main>
+  <script src="port-settings.js"></script>
+</body>
+</html>
